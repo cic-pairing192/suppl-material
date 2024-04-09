@@ -2,17 +2,17 @@
 
 This folder contains supplementary material for the paper "A short-list of pairing-friendly curves at the 192-bit security level".
 
-It contains C+ASM implementations for all the curves benchmarked in the Experimental Results: BLS12-1150, FM16-765, KSS16-766, Fam16-766. FM18-768, SG18-638, KSS18-638 and BLS24-509.
+It contains C+ASM implementations for all the curves benchmarked in the Experimental Results: BLS12-1150, FM16-765, KSS16-766, Fam16-766, FM18-768, SG18-638, KSS18-638 and BLS24-509.
 
 For each of this curves, the binaries can be built by locating the `<preset>` file in the `presets` folder and run the following inside the RELIC root folder:
 
-    mkdir -p relic-target
-    cd relic-target
+    mkdir -p target-<curve>
+    cd target-<curve>
     ../presets/<preset>.sh ../
     make
 
-The testing and benchmarking binaries for the pairing module can be found inside the `bin` folder, under names `test_pc` and `bench_pc` respectively.
-We provide prebuilt statically-linked binaries to make the job easier, since the library is notoriously non-trivial to configure and build correctly.
+The testing and benchmarking binaries for the pairing module can be found inside the `bin` folder, under names `test_pc` and `bench_pc`, respectively.
+We provide prebuilt statically-linked binaries to make compilation easier, since the library is notoriously non-trivial to configure and build correctly.
 
 The operations benchmarked are tagged:
 - `g1_mul` and `g1_mul_sec` for scalar multiplication in G1, with the latter implemented in constant-time.
