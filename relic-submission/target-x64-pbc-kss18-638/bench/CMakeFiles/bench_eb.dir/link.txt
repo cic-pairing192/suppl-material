@@ -1,0 +1,1 @@
+/usr/bin/cc  -Wall   -O3 -funroll-loops -fomit-frame-pointer -march=native -mtune=native -L/root/relic-submission/src/low/x64-asm-10l/  -static CMakeFiles/bench_eb.dir/bench_eb.c.o -o ../bin/bench_eb  ../lib/librelic_s.a /usr/lib/libgmp.a 

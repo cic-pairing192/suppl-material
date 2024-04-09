@@ -1,0 +1,1 @@
+/usr/bin/cc -m64 -Wall   -pipe -std=c99 -O2 -funroll-loops -fomit-frame-pointer -L/root/relic-submission/src/low/easy/  CMakeFiles/bench_fbx.dir/bench_fbx.c.o -o ../bin/bench_fbx  ../lib/librelic_s.a 

@@ -1,0 +1,1 @@
+/usr/bin/cc  -Wall   -O3 -funroll-loops -fomit-frame-pointer -march=native -mtune=native -L/root/relic-submission/src/low/x64-asm-12l/  -static CMakeFiles/test_ed.dir/test_ed.c.o -o ../bin/test_ed  ../lib/librelic_s.a /usr/lib/libgmp.a 

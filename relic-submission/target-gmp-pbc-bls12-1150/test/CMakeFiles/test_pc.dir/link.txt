@@ -1,0 +1,1 @@
+/usr/bin/cc  -Wall   -O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=native -mtune=native -L/root/relic-submission/src/low/gmp-sec/  -static CMakeFiles/test_pc.dir/test_pc.c.o -o ../bin/test_pc  ../lib/librelic_s.a /usr/lib/libgmp.a 

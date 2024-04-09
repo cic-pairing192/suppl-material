@@ -1,0 +1,1 @@
+/usr/bin/cc -m64 -Wall   -pipe -std=c99 -O2 -funroll-loops -fomit-frame-pointer -L/root/relic-submission/src/low/easy/  CMakeFiles/test_pp.dir/test_pp.c.o -o ../bin/test_pp  ../lib/librelic_s.a 
