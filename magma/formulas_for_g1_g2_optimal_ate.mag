@@ -1,0 +1,1385 @@
+// script to run the decomposition for optimal ate pairing.
+// added: script to get the formulas for fast cofactor clearing for G1, G2, and fast subgroup membership testing for G1, G2 with Yu Dai et al criterion
+
+load "final_exp_hard.mag";
+QQxX<X> := PolynomialRing(QQx);
+ZZy<y> := PolynomialRing(Integers());
+
+procedure formulas_BN()
+    printf "BN\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, D, k := get_bn_polynomials();
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", 6*R;
+    assert (((6*x + 2) + qx - qx^2 + qx^3) mod rx) eq 0;
+    assert (6*x + 2) eq ((-qx + qx^2 - qx^3) mod rx);
+    // alternative formula from Optimal Pairing paper by Vercauteren
+    assert (((x+1) + x*qx + x*qx^2 -2*x*qx^3) mod rx) eq 0;
+    assert x*(1 + qx + qx^2 -2*qx^3) mod rx eq -1;
+    // invert 1 + qx + qx^2 -2*qx^3 mod CyclotomicPolynomial(12):
+    p := x;
+    g, inv, _ := Xgcd(1 + p + p^2 -2*p^3, CyclotomicPolynomial(12));
+    assert x eq (-(qx^3 - qx^2 + qx + 2)/6) mod rx;
+    assert 6*x eq (-2 -qx + qx^2 - qx^3) mod rx; // it is actually the same as above when moving '-2' from the right-hand side to the left-hand side: 6*x+2 = ...
+
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+    //printf "G1 eigenvalue lambda mod c: %o\n", lambcx; // not well-defined as c=1
+    // order over Fp2
+    q2x := qx^2;
+    t2x := tx^2 - 2*qx;
+    y2x := yx*tx;
+    // order of the twist: sextic twist
+    tex := (t2x + 3*y2x)/2;// trace of the twist E'(Fp2)
+    yex := Sqrt((tex^2 - 4*q2x)/(-D)); // 36*x^4 + 48*x^3 + 24*x^2 + 8*x + 1
+    E2order := q2x + 1 - tex;
+    assert (E2order mod rx) eq 0;
+    g2cx := E2order div rx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, tex, yex, E2order, g2cx, rx);
+    printf "G2 cofactor: %o\n", g2cx;
+    printf "G2 eigenvalue lambda mod r:  %o\n", lambr2x;
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+    // short vector for G2 membership testing is closely related to the short vector for optimal ate pairing.
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    R := 6*R; // to get integer coefficients
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        // xg, u, v := XGCD(res, g2cx);
+        // printf "(%o)*res + (%o)*g2cx = %o\n", u, v, xg;
+        // but the problem is that Magma wil answer g=1 on all cases as soon as it is a constant, because of Q[x] -> change to Z[x] or do something else
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o\n", Factorisation(ZZ ! r1);
+    end for;
+
+    r3 := (1/2)*(Rows(R)[1] + Rows(R)[4]);
+    b := QQxX ! Eltseq(r3); // a polynomial made of the coefficients of the row
+    res := Resultant(b, X^2 - tx*X + qx);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    g := GCD(res, g2cx);
+    printf "%o -> resultant = rx*", r3; pretty_println_poly(g);
+    r1 := Resultant(res, g2cx);
+    printf "resulant(res, g2cx) = %o\n", Factorisation(ZZ ! r1);
+
+    b := QQxX ! [x, 3*x+1, x+1, 0];
+    res := Resultant(b, X^2 - tx*X + qx);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    g := GCD(res, g2cx);
+    printf "%o -> resultant = rx*", r3; pretty_println_poly(g);
+    r1 := Resultant(res, g2cx);
+    printf "resulant(res, g2cx) = %o\n", Factorisation(ZZ ! r1);
+    l := 241;
+    Fl := GF(l);
+    Flz<z> := PolynomialRing(Fl);
+    Gcd(Flz ! res, Flz ! g2cx);
+    Roots(Gcd(Flz ! res, Flz ! g2cx));
+    // u != -12 mod 241
+
+    // short vector for G2 cofactor clearing:
+    R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    R := 6*R;
+    printf "short vector for fast G2 cofactor clearing:\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+        //res := res div g2cx;
+        //printf "%o -> resultant = g2cx*", ri; pretty_println_poly(res);
+    end for;
+end procedure;
+
+procedure formulas_Freeman()
+    printf "Freeman k=10\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, Dx, k := get_freeman_polynomials();
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", 5*R;
+    //[     -1      -1       1 5*x + 1]
+    //[     -2       2     5*x       1]
+    //[      0 5*x + 2      -1       2]
+    //[5*x + 2      -1       2       0]
+    assert (((5*x + 2) - qx + 2*qx^2) mod rx) eq 0;
+    assert (5*x + 2) eq ((qx - 2*qx^2) mod rx);
+    assert ((-2 + 2*qx + 5*x*qx^2 + qx^3) mod rx) eq 0;
+    assert ((-1 -qx + qx^2 + (5*x+1)*qx^3) mod rx) eq 0;
+    // alternative formula from Optimal Pairing paper by Vercauteren
+    // [x + 1, x, -x, -x]
+    assert (((x+1) + x*qx - x*qx^2 -x*qx^3) mod rx) eq 0;
+    assert x*(1 + qx - qx^2 - qx^3) mod rx eq -1;
+    // invert 1 + qx - qx^2 - qx^3 mod CyclotomicPolynomial(10):
+    p := x;
+    g, inv, _ := Xgcd(1 + p - p^2 - p^3, CyclotomicPolynomial(10));
+    assert x eq (-((2*qx^2 - qx + 2)/5) mod rx);
+    assert 5*x eq (-2 + qx - 2*qx^2) mod rx; // it is actually the same as above when moving '-2' from the right-hand side to the left-hand side: 5*x+2 = ...
+
+    printf "no G1 eigenvalue lambda mod r, no automorphism.\n";
+    // order over Fp5
+    q5x := qx^5;
+    t5x := -txe;
+    y5x := yxe;
+    // order of the twist: quadratic twist
+    E2order := q5x + 1 - txe;
+    assert E2order eq g2cx * rx;
+    twx := qx + 1 + tx;
+    assert (g2cx mod twx) eq 0;
+    g2cxa := g2cx div twx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    lamb2xa, lambr2xa, lambc2xa := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cxa, rx);
+    lamb2xb, lambr2xb, lambc2xb := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, twx, rx);
+    printf "G2 cofactor: g2cxa * twx, g2cxa = %o\n", g2cxa;
+    printf "                          twx   = %o\n", twx;
+    printf "G2 eigenvalue lambda mod r:  %o\n", lambr2x;
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue lambda mod c2a: "; pretty_println_poly(lambc2xa);
+    printf "G2 eigenvalue lambda mod c2b: "; pretty_println_poly(lambc2xb);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+    // short vector for G2 membership testing is closely related to the short vector for optimal ate pairing.
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    R := 5*R; // to get integer coefficients
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        // xg, u, v := XGCD(res, g2cx);
+        // printf "(%o)*res + (%o)*g2cx = %o\n", u, v, xg;
+        // but the problem is that Magma wil answer g=1 on all cases as soon as it is a constant, because of Q[x] -> change to Z[x] or do something else
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o\n", Factorisation(ZZ ! r1);
+    end for;
+    // M := Matrix(F5, 4, 4, [-1, -1, 1, 1, -2, 2, 0, 1, 0, 2, -1, 2, 2, -1, 2, 0]);
+    // NullSpace(M);
+    // (1 0 2 3)
+    // (0 1 2 1)
+    r3 := (1/5)*(Rows(R)[1] +2* Rows(R)[3] - 2*Rows(R)[4]);
+    // (-2*x - 1  2*x + 1       -1    x + 1)
+    r4 := (1/5)*(Rows(R)[2] +2* Rows(R)[3] + Rows(R)[4]);
+    // (      x 2*x + 1       x       1)
+    r5 := [x + 1, x, -x, -x]; // Optimal Ate pairing Vercauteren
+
+    b := QQxX ! Eltseq(r3); // a polynomial made of the coefficients of the row
+    res := Resultant(b, X^2 - tx*X + qx);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    g := GCD(res, g2cx);
+    printf "%o -> resultant = rx*", r3; pretty_println_poly(g);
+    r1 := Resultant(res, g2cx);
+    printf "resulant(res, g2cx) = %o\n", Factorisation(ZZ ! r1);
+
+    b := QQxX ! Eltseq(r4); // a polynomial made of the coefficients of the row
+    res := Resultant(b, X^2 - tx*X + qx);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    g := GCD(res, g2cx);
+    printf "%o -> resultant = rx*", r4; pretty_println_poly(g);
+    r1 := Resultant(res, g2cx);
+    printf "resulant(res, g2cx) = %o\n", Factorisation(ZZ ! r1);
+
+    b := QQxX ! r5;
+    res := Resultant(b, X^2 - tx*X + qx);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    g := GCD(res, g2cx);
+    printf "%o -> resultant = rx*", r5; pretty_println_poly(g);
+    r1 := Resultant(res, g2cx);
+    printf "resulant(res, g2cx) = %o\n", Factorisation(ZZ ! r1);
+
+    // short vector for G2 cofactor clearing:
+    R := optimal_ate_pairing_fc(k, lambc2xa, g2cxa);
+    R := 25*R;
+    printf "short vector for fast G2 cofactor clearing mod g2cxb:\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cxa) eq 0;
+        //res := res div g2cxa;
+        //printf "%o -> resultant = g2cxa*", ri; pretty_println_poly(res);
+    end for;
+end procedure;
+
+procedure formulas_BLS12()
+    printf "\nBLS12\n";
+    k := 12;
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+    // printf "G1 eigenvalue lambda mod c: %o\n", lambcx; // not sure it is well-defined as cx = (x-1)^2/3 is a square/3
+    E2order := qx^2 + 1 - txe;
+    assert E2order eq rx * g2cx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o = %o/%o\n", r1, Factorisation(Numerator(r1)), Factorisation(Denominator(r1));
+    end for;
+
+    // short vector for G2 cofactor clearing:
+    R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    printf "short vector for fast G2 cofactor clearing:\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+        //res := res div g2cx;
+        //printf "%o -> resultant = g2cx*", ri; pretty_println_poly(res);
+    end for;
+end procedure;
+
+procedure formulas_BLS21()
+    printf "\nBLS21\n";
+    k := 21;
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+end procedure;
+
+procedure formulas_BLS24()
+    printf "\nBLS24\n";
+    k := 24;
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+    E2order := qx^4 + 1 - txe;
+    assert E2order eq rx * g2cx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o = %o/%o\n", r1, Factorisation(Numerator(r1)), Factorisation(Denominator(r1));
+    end for;
+
+    // short vector for G2 cofactor clearing:
+    R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    printf "short vector for fast G2 cofactor clearing:\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+        //res := res div g2cx;
+        //printf "%o -> resultant = g2cx*", ri; pretty_println_poly(res);
+    end for;
+end procedure;
+
+procedure formulas_BLS27()
+    printf "\nBLS27\n";
+    k := 27;
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+end procedure;
+
+procedure formulas_BLS48()
+    printf "\nBLS48\n";
+    k := 48;
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+end procedure;
+
+procedure formulas_KSS16()
+    printf "\nKSS16\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss16_polynomials();
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x + qx -2*qx^5) mod rx) eq 0;
+    assert ((-1 + 2*qx^4 + x*qx^7) mod rx) eq 0;
+    assert ((2 + x*qx^3 + qx^4) mod rx) eq 0;
+    printf "G1 order: rx ="; pretty_println_poly(rx);
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: "; pretty_println_poly(lambrx);
+    printf "G1 eigenvalue lambda mod c: "; pretty_println_poly(lambcx);
+    // order of the twist: quartic twist
+    E2order := g2cx * rx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o\n", r1;
+    end for;
+
+    ld := Denominator(LeadingCoefficient(g2cx));
+    printf "denominator of g2cx is %o = %o\n", ld, Factorization(ld);
+    printf "bad primes that divide c2 (g2cx has root(s) mod them)\n";
+    for l in PrimesUpTo(2000) do
+        if (ld mod l) eq 0 then
+            continue;
+        end if;
+        Fl := GF(l); Flz<z> := PolynomialRing(Fl); gl := Flz ! g2cx;
+        if #Roots(gl) gt 0 then
+            printf "%o ", l;
+        end if;
+    end for;
+    printf "\n";
+    // denominator of g2cx is 2^7 * 7^6
+    // bad primes
+    // 17 31 47 97 113 193 241 257 337 353 401 433 449 577 593 641 673 769 881 929 977 1009 1153 1201 1217 1249 1297 1361 1409 1489 1553 1601 1697 1777 1873 1889 ...
+
+    // short vector for G2 cofactor clearing:
+    R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    printf "short vector for fast G2 cofactor clearing:\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+        //res := res div g2cx;
+        //printf "%o -> resultant = g2cx*", ri; pretty_println_poly(res);
+    end for;
+end procedure;
+
+procedure formulas_KSS18()
+    printf "\nKSS18\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss18_polynomials();
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((-2 + 3*qx^3 + x*qx^5) mod rx) eq 0;
+    assert ((1 + x*qx^2 + 2*qx^3) mod rx) eq 0;
+    assert ((x + 3*qx -qx^4) mod rx) eq 0;
+    // Phi_18(qx) = 0 <=> qx^6 -qx^3 + 1 = 0
+    // the 3 equations are all equivalent by multiplication by some powr of qx and up to Phi_k(qx) simplification
+    // (x + 3*qx -qx^4)*qx^2 = x*qx^2 + 3*qx^3 - qx^6 = x*qx^2 + 3*qx^3 - (qx^3 - 1) = 1 + x*qx^2 + 2*qx^3
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+    printf "G1 eigenvalue lambda mod c: %o, conjugate %o\n", lambcx, -lambcx-1;
+    E2order := qx^3 + 1 - txe;
+    assert E2order eq rx * g2cx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o = %o/%o\n", r1, Factorization(Numerator(r1)),Factorization(Denominator(r1));
+    end for;
+
+    // short vector for G2 cofactor clearing:
+    R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    printf "short vector for fast G2 cofactor clearing:\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+        //res := res div g2cx;
+        //printf "%o -> resultant = g2cx*", ri; pretty_println_poly(res);
+    end for;
+end procedure;
+
+procedure formulas_FM23k16()
+    printf "\nFotiadisMartindale#23, k=16\n";
+    rx, tx, qx, yx, cx, lambrx, lambc0x, g2cx, txe, yxe, D, k := get_fm23_k16_polynomials();
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+    printf "G1 order: rx ="; pretty_println_poly(rx);
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: "; pretty_println_poly(lambrx);
+    printf "G1 eigenvalue lambda mod c0:"; pretty_println_poly(lambc0x);
+    c0x := cx div (x^2/4);
+    printf "non-square cx = c0x: "; pretty_println_poly(c0x);
+
+    E2order := g2cx * rx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o\n", r1;
+    end for;
+    // short vector for G2 cofactor clearing:
+    printf "short vector for fast G2 cofactor clearing: it does not work with LLL on polynomials\n";
+    //R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    R1 := Matrix(QQx, 8, 8, [[  (x^7+2)/2,       x^6/2,       x^5/2,        x^4/2,  x^3*(2-x)/2, x^2*(2-x)/2,   x*(2-x)/2,     (2-x)/2],
+			     [    (x-2)/2,   (x^7+2)/2,       x^6/2,        x^5/2,        x^4/2, x^3*(2-x)/2, x^2*(2-x)/2,   x*(2-x)/2],
+			     [  x*(x-2)/2,     (x-2)/2,   (x^7+2)/2,        x^6/2,        x^5/2,       x^4/2, x^3*(2-x)/2, x^2*(2-x)/2],
+			     [x^2*(x-2)/2,   x*(x-2)/2,     (x-2)/2,    (x^7+2)/2,        x^6/2,       x^5/2,       x^4/2, x^3*(2-x)/2],
+			     [x^3*(x-2)/2, x^2*(x-2)/2,   x*(x-2)/2,      (x-2)/2,    (x^7+2)/2,       x^6/2,       x^5/2,       x^4/2],
+			     [     -x^4/2, x^3*(x-2)/2, x^2*(x-2)/2,    x*(x-2)/2,      (x-2)/2,   (x^7+2)/2,       x^6/2,       x^5/2],
+			     [     -x^5/2,      -x^4/2, x^3*(x-2)/2,  x^2*(x-2)/2,    x*(x-2)/2,     (x-2)/2,   (x^7+2)/2,       x^6/2],
+			     [      x^6/2,       x^5/2,       x^4/2, -x^3*(x-2)/2, -x^2*(x-2)/2,  -x*(x-2)/2,    -(x-2)/2,  -(x^7+2)/2]]);
+    Determinant(R1) eq -g2cx;
+    printf "reverse-engineering the data from pratical parameters, one gets the reduced matrix, assuming u even:\n%o\n", R1;
+    // check short vector:
+    i := 1;
+    for ri in Rows(R1) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+        res := res div g2cx;
+        printf "R%o -> resultant = g2cx*", i; pretty_println_poly(res);
+	i := i+1;
+    end for;
+end procedure;
+
+procedure formulas_AFG_k16(:odd:=false)
+    printf "\nNew Fotiadis k=16 with square cofactor\n";
+    rx, tx, qx, yx, cx, lambrx, lambc0x, g2cx, txe, yxe, D, k := get_afg_k16_polynomials();
+    if odd then
+	rx := rx/2;
+	cx := cx*2;
+	g2cx := 2*g2cx;
+    end if;
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x + qx^5) mod rx) eq 0;
+    assert ((-1 + x*qx^3) mod rx) eq 0;
+
+    printf "G1 order: rx ="; pretty_println_poly(rx);
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: "; pretty_println_poly(lambrx);
+    printf "G1 eigenvalue lambda mod c: not well-defined\n";
+
+    E2order := g2cx * rx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "irreducible: %o\n", IsIrreducible(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o\n", r1;
+    end for;
+
+    // short vector for G2 cofactor clearing:
+    printf "short vector for fast G2 cofactor clearing: it does not work with LLL on polynomials\n";
+    //R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    R1 := Matrix(QQx, 8, 8, [[      (1+x^3), -x^3*(1+x^3)/2,             -x,    x*(1+x^3)/2, -x^4*(x^3+1)/2,           -x^2,  x^2*(1+x^3)/2,               1],
+			     [ -x*(1+x^3)/2,  x^4*(1+x^3)/2,            x^2, -x^2*(1+x^3)/2,             -1,        (1+x^3), -x^3*(1+x^3)/2,              -x],
+			     [x^2*(1+x^3)/2,              1,       -(x^3+1),  x^3*(1+x^3)/2,              x,   -x*(1+x^3)/2,  x^4*(1+x^3)/2,             x^2],
+			     [x^3*(1+x^3)/2,              x,   -x*(1+x^3)/2,  x^4*(1+x^3)/2,            x^2, -x^2*(1+x^3)/2,             -1,         (x^3+1)],
+			     [x^4*(1+x^3)/2,            x^2, -x^2*(1+x^3)/2,             -1,        (x^3+1), -x^3*(1+x^3)/2,             -x,     x*(1+x^3)/2],
+			     [            1,       -(1+x^3),  x^3*(1+x^3)/2,              x,   -x*(1+x^3)/2,  x^4*(1+x^3)/2,            x^2,  -x^2*(1+x^3)/2],
+			     [            x,   -x*(1+x^3)/2,  x^4*(1+x^3)/2,            x^2, -x^2*(1+x^3)/2,             -1,         (x^3+1), -x^3*(1+x^3)/2],
+			     [         -x^2,  x^2*(1+x^3)/2,              1,       -(x^3+1),  x^3*(1+x^3)/2,              x,    -x*(1+x^3)/2,  x^4*(1+x^3)/2]]);
+    Determinant(R1) eq -g2cx;
+    printf "reverse-engineering the data from pratical parameters, one gets the reduced matrix, assuming u even:\n%o\n", R1;
+    // check short vector:
+    i := 0;
+    for ri in Rows(R1) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+        res := res div g2cx;
+        printf "R%o -> resultant = g2cx*", i; pretty_println_poly(res);
+	i := i+1;
+    end for;
+end procedure;
+
+procedure formulas_FM25k18()
+    printf "\nFotiadisMartindale#25, k=18\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_fm25_k18_polynomials();
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((1 + x*qx^2) mod rx) eq 0;
+    assert ((x + qx - qx^4) mod rx) eq 0;
+    // Phi_18(qx) = qx^6-qx^3+1
+    // (x + qx - qx^4)*qx^2 = x*qx^2 + qx^3 - qx^6 = x*qx^2 + 1
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+    printf "G1 eigenvalue lambda mod c: "; pretty_print_poly(lambcx:with_sign:=true); printf ", conjugate "; pretty_println_poly(-lambcx-1:with_sign:=true);
+    E2order := qx^3 + 1 - txe;
+    assert E2order eq rx * g2cx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(3, lambrx, rx);
+    printf "short vectors for fast G1 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 + X + 1);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, cx);
+        printf "resulant(res, cx) = %o = %o/%o\n", r1, Factorization(Numerator(r1)),Factorization(Denominator(r1));
+    end for;
+
+    // short vector for G1 cofactor clearing:
+    R := optimal_ate_pairing_fc(3, lambcx, cx); // 3 <-> Degree(X^3-1) which corresponds to phi^3-1 = 0
+    printf "short vector for fast G1 cofactor clearing:\n";
+    printf "(1/3)*%o\n", 3*R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 + X + 1);
+        assert (res mod cx) eq 0;
+    end for;
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+	numer_r1 := Factorization(Numerator(r1));
+	denom_r1 := Factorization(Denominator(r1));
+        printf "resulant(res, g2cx) = %o = %o/%o\n", r1, numer_r1, denom_r1;
+	for l in [n[1] : n in numer_r1] do
+	    Fl := GF(l);
+	    Flz<z> := PolynomialRing(Fl);
+	    ra := [rr[1] : rr in Roots(Flz ! res)];
+	    rb := [rr[1] : rr in Roots(Flz ! (g2cx))];
+	    inter := [ri : ri in ra | ri in rb];
+	    printf "l = %o, ra = %o, rb = %o, common roots are %o\n", l, ra, rb, inter;
+	end for;
+    end for;
+
+    // short vector for G2 cofactor clearing:
+    printf "short vector for fast G2 cofactor clearing:\n";
+    R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    Determinant(R) eq -g2cx;
+    printf "short vector for fast G2 cofactor clearing:\n";
+    printf "%o\n", R;
+    printf "= (1/3) * \n%o\n", 3*R;
+    for i := 1 to NumberOfRows(R) do
+	printf "[ ";
+	for j := 1 to NumberOfColumns(R) do
+	    pretty_print_poly(R[i][j]:with_sign:=true);printf ", ";
+	end for;
+	printf "]\n";
+    end for;
+
+    R1 := Matrix(QQx, 6, 6, [[            2*x*(x + 2)/3,           x^3 - (x + 2)/3,          -2*x^2*(x + 2)/3,      -x*(x^3 + (x + 2)/3),                 2*(x+2)/3, x^2*(x^3 + (x + 2)/3) - 1 ],
+			     [          x^3 - (x + 2)/3,          -2*x^2*(x + 2)/3,      -x*(x^3 - (x + 2)/3),                 2*(x+2)/3, x^2*(x^3 + (x + 2)/3) - 1,            -2*x*(x + 2)/3 ],
+			     [         -2*x^2*(x + 2)/3,      -x*(x^3 - (x + 2)/3),           x^3 + (x + 2)/3, x^2*(x^3 + (x + 2)/3) - 1,            -2*x*(x + 2)/3,          -x^3 + (x + 2)/3 ],
+			     [     -x*(x^3 - (x + 2)/3),           x^3 + (x + 2)/3, x^2*(x^3 - (x + 2)/3) - 1,            -2*x*(x + 2)/3,          -x^3 + (x + 2)/3,           2*x^2*(x + 2)/3 ],
+			     [          x^3 + (x + 2)/3, x^2*(x^3 - (x + 2)/3) - 1,      -x*(x^3 + (x + 2)/3),          -x^3 + (x + 2)/3,           2*x^2*(x + 2)/3,       x*(x^3 - (x + 2)/3) ],
+			     [x^2*(x^3 - (x + 2)/3) - 1,      -x*(x^3 + (x + 2)/3),                 2*(x+2)/3,           2*x^2*(x + 2)/3,       x*(x^3 - (x + 2)/3),          -x^3 - (x + 2)/3 ]]);
+    Determinant(R1) eq -g2cx;
+    R1 eq R;
+
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+    end for;
+end procedure;
+
+procedure formulas_SG18a()
+    printf "\nSG18(a) (Aurifeuille)\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18_polynomials(:exp_trace:=1);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", 3*R;
+    //l1 [  0  -1   0   0   2 3*x]
+    //l2 [ -1   0   0   2 3*x   0]
+    //l3 [  0   0   1 3*x   0   1]
+    //l4 [  0   1 3*x   0   1   0]
+    //l5 [  1 3*x   0   1   0   0]
+    //l6 [3*x   0   2   0   0  -1]
+    // l6 + l3, (l6+l3)/3
+    // [3*x   0   2   0   0  -1]
+    // [  0   0   1 3*x   0   1]
+    //=[3*x   0   3 3*x   0   0]
+    // [  x   0   1   x   0   0]
+    // l2+l5, (l2+l5)/3
+    // [ -1   0   0   2 3*x   0]
+    // [  1 3*x   0   1   0   0]
+    // [  0 3*x   0   3 3*x   0]
+    // [  0   x   0   1   x   0]
+    assert ((3*x + 2*qx^2 - qx^5) mod rx) eq 0;
+    assert ((-1 + 2*qx^3 + 3*x*qx^4) mod rx) eq 0;
+    assert ((1 + 3*x*qx + qx^3) mod rx) eq 0;
+    assert ((x + qx^2 + x*qx^3) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: %o, conjugate %o\n", lambrx, -lambrx-1;
+    E2order := qx^3 + 1 - txe;
+    assert E2order eq rx * g2cx;
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    R := 3*R;
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+        printf "resulant(res, g2cx) = %o = %o/%o\n", r1, Factorisation(Numerator(r1)), Factorisation(Denominator(r1));
+    end for;
+    eq2 := x + x*(qx^3 mod rx) + (qx^2 mod rx);
+    eq2 eq 0;
+    eq2 := x + x*X^3 + X^2;
+    g := X^2 -tx*X + qx;
+    res := Resultant(eq2, g);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    // !!! actually there is a cofactor 3 to the polynomial g2cx.
+    // Consider separately 3 anf g2cx/3
+    Factorization(ZZ ! Resultant(res, g2cx div 3));
+    Resultant(res, g2cx) eq 3^306 * 271 * 1070240566457197;
+    Resultant(res, g2cx div 3) eq 3^280 * 271 * 1070240566457197;
+    for l in [3, 271, 1070240566457197] do
+	Fl := FiniteField(l);
+	Flz<z> := PolynomialRing(Fl);
+	r1 := [rr[1] : rr in Roots(Flz ! res)];
+	r2 := [rr[1] : rr in Roots(Flz ! (g2cx div 3))];
+	inter := [ri : ri in r1 | ri in r2];
+	printf "l = %o, common roots are %o\n", l, inter;
+    end for;
+    // l = 3, common roots are []
+    // l = 271, common roots are [ 232 ]
+    // l = 1070240566457197, common roots are [ 784561254737940 ]
+    // problem, there is 3
+    // g2cx eq 3*(177147*x^24 - 354294*x^22 + 118098*x^21 + 295245*x^20 - 236196*x^19 - 98415*x^18 + 196830*x^17 - 26244*x^16 - 83106*x^15 + 41553*x^14 + 15309*x^13 - 19440*x^12 + 1458*x^11 + 4860*x^10 - 1539*x^9 - 567*x^8 + 405*x^7 - 54*x^5 + 1);
+    // but 3 is an artifact: is shows up in the Resultant because it divides the leading coefficient of g2cx
+    // where 177147*x^24 = 3^11*x^24 and the leading coefficient of res 531441*x^26 = 3^12*x^26
+    eq3 := x*X + X^3 + x*X^4;
+    res := Resultant(eq3, g);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    Factorization(ZZ ! Resultant(res, g2cx));
+    Resultant(res, g2cx) eq  3^426 * 271 * 3720853 * 1070240566457197;
+    for l in [3, 271, 3720853, 1070240566457197] do
+	Fl := FiniteField(l);
+	Flz<z> := PolynomialRing(Fl);
+	r1 := [rr[1] : rr in Roots(Flz ! res)];
+	r2 := [rr[1] : rr in Roots(Flz ! (g2cx div 3))];
+	inter := [ri : ri in r1 | ri in r2];
+	printf "l = %o, common roots are %o\n", l, inter;
+    end for;
+    // l = 3, common roots are []
+    // l = 271, common roots are [ 232 ]
+    // l = 3720853, common roots are [ 717643 ]
+    // l = 1070240566457197, common roots are [ 784561254737940 ]
+
+    b0, b1 := Explode(Eltseq(eq3 mod g));
+    assert (b0 + b1*X) eq (eq3 mod g);
+    assert ((b0^2 + tx*b0*b1 + b1^2*qx) mod rx) eq 0;
+    Factorization(ZZ ! Resultant((b0^2 + tx*b0*b1 + b1^2*qx) div rx, g2cx));
+
+    eq4 := x + x*X + (x+1)*X^2 + (x+1)*X^3 + (x+1)*X^4 + x*X^5;
+    res := Resultant(eq4, g);
+    assert (res mod rx) eq 0;
+    res := res div rx;
+    Factorization(ZZ ! Resultant(res, g2cx));
+    Resultant(res, g2cx) eq 3^546 * 19^2 * 271 * 1621 * 62011 * 354961 * 1070240566457197;
+    // short vector for G2 cofactor clearing:
+    R := optimal_ate_pairing_fc(k, lambc2x, g2cx);
+    R := 3*R;
+    printf "short vector for fast G2 cofactor clearing:\n";
+    printf "%o\n", 3*R;
+    // check short vector:
+    for ri in Rows(R) do
+        vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(vix, X^2 - tx*X + qx);
+        assert (res mod g2cx) eq 0;
+    end for;
+end procedure;
+
+procedure formulas_SG18b()
+    printf "\nSG18(b) (Aurifeuille)\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18_polynomials(:exp_trace:=7);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", 3*R;
+    assert ((3*x - qx^2 + 2*qx^5) mod rx) eq 0;
+    assert ((-2 + 3*x*qx + qx^3) mod rx) eq 0;
+    assert ((-1 -qx^3 + 3*x*qx^4) mod rx) eq 0;
+end procedure;
+
+procedure formulas_SG18c()
+    printf "\nSG18(c) (Aurifeuille)\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18_polynomials(:exp_trace:=13);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", 3*R;
+    assert ((3*x - qx^2 - qx^5) mod rx) eq 0;
+    assert ((1 + 3*x*qx - 2*qx^3) mod rx) eq 0;
+    assert ((2 - qx^3 + 3*x*qx^4) mod rx) eq 0;
+end procedure;
+
+procedure formulas_SG20a()
+    printf "\nSG20(a) (Aurifeuille)\n";
+    rx, tx, qx, yx, cx, lambx, D, k := get_auri_k20_polynomials(:D:=1, exp_tr:=9);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", 2*R;
+    // Phi_20(qx) = qx^8 - qx^6 + qx^4 - qx^2 + 1 = 0 mod rx
+    assert ((2*x + qx^2 + qx^7) mod rx) eq 0;
+    assert ((-1 + 2*x*qx + qx^2 + qx^3 - qx^4 + qx^6) mod rx) eq 0;
+    assert ((-1 + 2*x*qx^3 + qx^5) mod rx) eq 0;
+    assert ((-1 + qx^2 - qx^3 -qx^4 + (2*x+1)*qx^6) mod rx) eq 0;
+end procedure;
+
+procedure formulas_SG20b()
+    printf "\nSG20(b) (Aurifeuille)\n";
+    rx, tx, qx, yx, cx, lambx, D, k := get_auri_k20_polynomials(:D:=1, exp_tr:=19);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", 2*R;
+    assert ((2*x + qx^2 - qx^7) mod rx) eq 0;
+    assert ((1 + 2*x*qx - qx^2 + qx^3 + qx^4 - qx^6) mod rx) eq 0;
+    assert ((1 + 2*x*qx^3 + qx^5) mod rx) eq 0;
+    assert ((-1 + qx^2 + qx^3 - qx^4 + (2*x+1)*qx^6) mod rx) eq 0;
+end procedure;
+
+procedure formulas_FST66k20()
+    printf "\nFST 6.6 k=20\n";
+    k := 20;
+    rx, tx, qx, yx, cx, lambrx, D, k := get_fst66_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x^2 + x*qx + qx^2) mod rx) eq 0;
+    // combine Frobenius map with endomorphism of eigenvalue lambda
+    assert ((lambrx^2 + lambrx + 1) mod rx) eq 0;
+    R := Matrix(QQx, 16, 16, [[rx,          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-lambrx,            0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx  *lambrx mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^2*lambrx mod rx,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^3*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^4*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^5*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^6*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^7*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n", R;
+    assert ((x + qx + lambrx*qx) mod rx) eq 0;
+    assert ((x*lambrx - qx) mod rx) eq 0;
+    // other formulas
+    assert ((1 + x*(qx - qx^3 + qx^5 -qx^7) + lambrx) mod rx) eq 0;
+    assert ((x*lambrx -qx^19 + qx^17 - qx^15 + qx^13) mod rx) eq 0;
+    assert ((lambrx + x*qx^19 + qx^18 - qx^16 + qx^14 - qx^12) mod rx) eq 0;
+    assert ((-lambrx + qx^10 + x*qx^9) mod rx) eq 0;
+    assert ((-lambrx -1 + x*qx^9) mod rx) eq 0;
+
+    lambrx := -lambrx-1;
+    assert ((lambrx^2 + lambrx + 1) mod rx) eq 0;
+    R := Matrix(QQx, 16, 16, [[rx,          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-lambrx,            0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx  *lambrx mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^2*lambrx mod rx,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^3*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^4*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^5*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^6*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^7*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n", R;
+    assert ((qx + x*lambrx + lambrx*qx) mod rx) eq 0;
+    assert ((x -lambrx*qx) mod rx) eq 0;
+end procedure;
+
+procedure formulas_FST64k20()
+    printf "\nFST 6.4 k=20\n";
+    k := 20;
+    rx, tx, qx, yx, cx, lambrx, D, k := get_fst64_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+end procedure;
+
+procedure formulas_FST64k28()
+    printf "\nFST 6.4 k=28\n";
+    k := 28;
+    rx, tx, qx, yx, cx, lambrx, D, k := get_fst64_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx) mod rx) eq 0;
+end procedure;
+
+procedure formulas_KSS20a()
+    printf "\nnew KSS20(a) (Gasnier-Guillevic)\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, g2cxa, g2cxb, g2cxc, txe, yxe, D, k := get_kss20a_polynomials(:WithG2Cofactors:=true);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx + 2*qx^6) mod rx) eq 0;
+    assert ((-2 + x*qx^4 - qx^5) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: "; pretty_print_poly(lambrx); printf ", conjugate "; pretty_println_poly(-lambrx);
+    printf "G1 eigenvalue lambda mod c: "; pretty_print_poly(lambcx); printf ", conjugate "; pretty_println_poly(-lambcx);
+    E2order := qx^5 + 1 - txe;
+    assert E2order eq rx * g2cx;
+    // g2cx has 3 irreducible factors of degrees 2, 10, and 40
+    assert g2cxa eq (x^2 - 4*x + 5)/410; // x^2 - 4*x + 5 = (x-2)^2 + 1 --> eigenvalue is (x-2)
+    assert (g2cx mod g2cxa) eq 0;
+    assert g2cxb eq (x^10 + 2*x^9 + 8*x^8 + 22*x^7 + 48*x^6 + 158*x^5 + 732*x^4 + 1698*x^3 + 3132*x^2 + 4038*x + 3617)/164;
+    assert (g2cx mod g2cxb) eq 0;
+    assert g2cxc eq (g2cx div g2cxa) div g2cxb;
+    assert g2cxc eq (x^40 - 12*x^39 + 81*x^38 - 368*x^37 + 1234*x^36 - 2916*x^35 + 4582*x^34 - 1392*x^33 - 17691*x^32 + 83284*x^31 - 233708*x^30 + 606788*x^29 - 1123493*x^28 + 1896708*x^27 - 1212622*x^26 - 1557152*x^25 + 30285302*x^24 - 77847992*x^23 + 221866467*x^22 - 256240972*x^21 + 460304378*x^20 + 855390748*x^19 - 1164973053*x^18 + 14073616088*x^17 - 20302546418*x^16 + 63883672028*x^15 - 68889454870*x^14 + 233514919744*x^13 + 763359475479*x^12 - 1095316320788*x^11 + 3008615345452*x^10 - 5810198481140*x^9 + 16534841199225*x^8 + 44404188500452*x^7 - 78094254358034*x^6 + 52107520242264*x^5 - 87161407198630*x^4 + 580323744987400*x^3 + 1005357938633625*x^2 - 4177675283717364*x + 4510297354308101)/(2^7 * 41^7);
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    lamb2xa, lambr2xa, lambc2xa := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cxa, rx);
+    lamb2xb, lambr2xb, lambc2xb := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cxb, rx);
+    lamb2xc, lambr2xc, lambc2xc := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cxc, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue lambda mod c2a: "; pretty_println_poly(lambc2xa);
+    printf "G2 eigenvalue lambda mod c2b: "; pretty_println_poly(lambc2xb);
+    printf "G2 eigenvalue lambda mod c2c: "; pretty_println_poly(lambc2xc);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+	//printf "resulant(res, g2cx) = %o = %o/%o\n", r1, Factorization(Numerator(r1)),Factorization(Denominator(r1));
+	printf "resulant(res, g2cx) = %o\n", r1;
+    end for;
+
+    // short vector for G2 cofactor clearing:
+    // extremely slow to run LLL on the large input lambc2x
+    // R := optimal_ate_pairing_fc(k, lambc2x, g2cx); // too slow
+    // trying the subgroups one by one, but it does not end for the 3rd one of degree 40
+    //for lg in [[lambc2xa, g2cxa], [lambc2xb, g2cxb], [lambc2xc, g2cxc]] do
+    for lg in [[lambc2xa, g2cxa], [lambc2xb, g2cxb]] do
+	lambc2xi := lg[1];
+	g2cxi := lg[2];
+	assert (Evaluate(X^2 -tx*X + qx, lambc2xi) mod g2cxi) eq 0;
+	printf "short vector for fast G2 cofactor clearing mod g2cxi of degree %o:\n", Degree(g2cxi);
+	R := optimal_ate_pairing_fc(k, lambc2xi, g2cxi);
+	printf "%o\n", R;
+	// check short vector:
+	for ri in Rows(R) do
+            vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+            res := Resultant(vix, X^2 - tx*X + qx);
+            assert (res mod g2cxi) eq 0;
+        //res := res div g2cxi;
+        //printf "%o -> resultant = g2cxi*", ri; pretty_println_poly(res);
+	end for;
+    end for;
+    printf "short vector for fast G2 cofactor clearing mod g2cxi of degree %o: too slow, aborting.\n", Degree(g2cxc);
+
+    // g2cxa
+    // [     1 x - 2]
+    // [ x - 2    -1]
+    // g2cxb
+
+    // [ -3*x^4 - 7*x^3 - 13*x^2 - 17*x - 44   x^5 + x^4 - x^3 - 9*x^2 - 31*x - 41]
+    // [ x^5 + x^4 - x^3 - 9*x^2 - 31*x - 41    3*x^4 + 7*x^3 + 13*x^2 + 17*x + 44]
+
+    // g2cxc not possible to compute it directly like that as polynomial. Try over the integers.
+    u0d := ZZ ! -0x242000004000d;
+    u0a := ZZ ! 0x2510408004001;
+    u0b := ZZ ! 0x252fffffdffdf;
+    u0c := ZZ ! -0x257ffefdffff9;
+    c2a0 := 0;
+    c2b0 := 0;
+    c2c0 := 0;
+    for u0 in [u0d, u0a, u0b, u0c] do
+	printf "u0 = %o\n", u0;
+	q := ZZ ! Evaluate(qx, u0);
+	r := ZZ ! Evaluate(rx, u0);
+	c2a := ZZ ! Evaluate(g2cxa, u0);
+	l2a := ZZ ! (Integers(c2a) ! Evaluate(lambc2xa, u0));
+	c2a0 := Gcd(c2a0, c2a);
+	c2b := ZZ ! Evaluate(g2cxb, u0);
+	l2b := ZZ ! (Integers(c2b) ! Evaluate(lambc2xb, u0));
+	c2b0 := Gcd(c2b0, c2b);
+	c2c := ZZ ! Evaluate(g2cxc, u0);
+	c2c0 := Gcd(c2c0, c2c); // multiple of 2
+	l2c := ZZ ! (Integers(c2c) ! Evaluate(lambc2xc, u0));
+	printf "short vector for fast G2 cofactor clearing mod g2a\n";
+	R := optimal_ate_pairing_fc(k, l2a, c2a);
+	printf "%o\n", R;
+	printf "short vector for fast G2 cofactor clearing mod g2b\n";
+	R := optimal_ate_pairing_fc(k, l2b, c2b);
+	printf "%o\n", R;
+	printf "short vector for fast G2 cofactor clearing mod g2c\n";
+	R := optimal_ate_pairing_fc(k, l2c, c2c);
+	printf "%o\n", R;
+	printf "\n";
+
+    end for;
+    printf "Gcd(all c2a) = %o\n", c2a0;
+    printf "Gcd(all c2b) = %o\n", c2b0;
+    printf "Gcd(all c2c) = %o\n", c2c0;
+
+end procedure;
+
+procedure formulas_KSS20b()
+    printf "\nnew KSS20(b) (Gasnier-Guillevic)\n";
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, g2cxa, g2cxb, g2cxc, txe, yxe, D, k := get_kss20b_polynomials(:WithG2Cofactors:=true);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x - qx - 2*qx^6) mod rx) eq 0;
+    assert ((2 + x*qx^4 - qx^5) mod rx) eq 0;
+    printf "G1 cofactor: "; pretty_println_poly(cx);
+    printf "G1 eigenvalue lambda mod r: "; pretty_print_poly(lambrx); printf ", conjugate "; pretty_println_poly(-lambrx);
+    printf "G1 eigenvalue lambda mod c: "; pretty_print_poly(lambcx); printf ", conjugate "; pretty_println_poly(-lambcx);
+    E2order := qx^5 + 1 - txe;
+    assert E2order eq rx * g2cx;
+    // g2cx has 3 irreducible factors of degrees 2, 10, and 40
+    assert g2cxa eq (x^2 + 4*x + 5)/(2*205); // = (x+2)^2 + 1 --> eigenvalue is (x+2)
+    assert (g2cx mod g2cxa) eq 0;
+    assert g2cxb eq (x^10 - 6*x^9 + 24*x^8 - 66*x^7 + 144*x^6 - 322*x^5 + 556*x^4 - 1814*x^3 + 4476*x^2 - 8834*x + 16081)/164;
+    assert (g2cx mod g2cxb) eq 0;
+    assert g2cxc eq (g2cx div g2cxa) div g2cxb;
+    assert g2cxc eq (x^40 - 4*x^39 + 17*x^38 - 16*x^37 + 18*x^36 - 124*x^35 - 474*x^34 - 504*x^33 - 7675*x^32 - 14804*x^31 + 17268*x^30 + 91116*x^29 + 347531*x^28 + 1275356*x^27 + 4520402*x^26 + 8344056*x^25 - 6077034*x^24 - 60957864*x^23 - 190467869*x^22 - 628237204*x^21 - 1612703798*x^20 - 1879931884*x^19 + 3173950691*x^18 + 18937856936*x^17 + 55697848206*x^16 + 157804061716*x^15 + 300122616490*x^14 + 96006163704*x^13 - 1006135659593*x^12 - 3233957569132*x^11 - 8717033479764*x^10 - 18096857295900*x^9 - 14460907786775*x^8 + 25708303346236*x^7 + 105309677115150*x^6 + 213078460712544*x^5 + 337254733957690*x^4 + 396235604668200*x^3 + 231148366241625*x^2 + 362702841457364*x + 732038255358101)/(2^7*41^7);
+    lamb2x, lambr2x, lambc2x := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cx, rx);
+    lamb2xa, lambr2xa, lambc2xa := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cxa, rx);
+    lamb2xb, lambr2xb, lambc2xb := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cxb, rx);
+    lamb2xc, lambr2xc, lambc2xc := get_eigenvalue_G2(tx, yx, txe, yxe, E2order, g2cxc, rx);
+    printf "G2 cofactor: "; pretty_println_poly(g2cx);
+    printf "G2 eigenvalue lambda mod r:  "; pretty_println_poly(lambr2x);
+    printf "G2 eigenvalue lambda mod c2: "; pretty_println_poly(lambc2x);
+    printf "G2 eigenvalue lambda mod c2a: "; pretty_println_poly(lambc2xa);
+    printf "G2 eigenvalue lambda mod c2b: "; pretty_println_poly(lambc2xb);
+    printf "G2 eigenvalue lambda mod c2c: "; pretty_println_poly(lambc2xc);
+    printf "G2 eigenvalue not reduced:   "; pretty_println_poly(lamb2x);
+
+    printf "short vectors for fast G2 subgroup membership testing: rows of the matrix\n";
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    // check short vector:
+    for ri in Rows(R) do
+        b := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+        res := Resultant(b, X^2 - tx*X + qx);
+        assert (res mod rx) eq 0;
+        res := res div rx;
+        g := GCD(res, g2cx);
+        printf "%o -> resultant = rx*", ri; pretty_println_poly(g);
+        r1 := Resultant(res, g2cx);
+	//printf "resulant(res, g2cx) = %o = %o/%o\n", r1, Factorization(Numerator(r1)),Factorization(Denominator(r1));
+	printf "resulant(res, g2cx) = %o\n", r1;
+    end for;
+
+    // short vector for G2 cofactor clearing:
+    // extremely slow to run LLL on the large input lambc2x
+    // R := optimal_ate_pairing_fc(k, lambc2x, g2cx); // too slow
+    // trying the subgroups one by one, but it does not end for the 3rd one of degree 40
+    //for lg in [[lambc2xa, g2cxa], [lambc2xb, g2cxb], [lambc2xc, g2cxc]] do
+    for lg in [[lambc2xa, g2cxa], [lambc2xb, g2cxb]] do
+	lambc2xi := lg[1];
+	g2cxi := lg[2];
+	assert (Evaluate(X^2 -tx*X + qx, lambc2xi) mod g2cxi) eq 0;
+	printf "short vector for fast G2 cofactor clearing mod g2cxi of degree %o:\n", Degree(g2cxi);
+	R := optimal_ate_pairing_fc(k, lambc2xi, g2cxi);
+	printf "%o\n", R;
+	// check short vector:
+	for ri in Rows(R) do
+            vix := QQxX ! Eltseq(ri); // a polynomial made of the coefficients of the row
+            res := Resultant(vix, X^2 - tx*X + qx);
+            assert (res mod g2cxi) eq 0;
+        //res := res div g2cxi;
+        //printf "%o -> resultant = g2cxi*", ri; pretty_println_poly(res);
+	end for;
+    end for;
+    printf "short vector for fast G2 cofactor clearing mod g2cxi of degree %o: too slow, aborting.\n", Degree(g2cxc);
+
+    // g2cxa
+    //[    1 x + 2]
+    //[x + 2    -1]
+
+    // g2cxb
+    //[          x^4 + x^3 - 9*x^2 + 31*x - 120   x^5 - 3*x^4 + 7*x^3 - 13*x^2 + 17*x - 41]
+    //[x^5 - 3*x^4 + 7*x^3 - 13*x^2 + 17*x - 41            -x^4 - x^3 + 9*x^2 - 31*x + 120]
+
+    // g2cxc not possible to compute it directly like that as polynomial. Try over the integers.
+    u0575a := ZZ ! -0x2240ffffff7ff;
+    u0575b := ZZ ! 0x23e083fffffff;
+    u0576a := ZZ ! -0x2600008440001;
+    u0576b := ZZ ! -0x2601dffc00001;
+    c2a0 := 0;
+    c2b0 := 0;
+    c2c0 := 0;
+    for u0 in [u0575a, u0575b, u0576a, u0576b] do
+	printf "u0 = %o\n", u0;
+	q := ZZ ! Evaluate(qx, u0);
+	r := ZZ ! Evaluate(rx, u0);
+	c2a := ZZ ! Evaluate(g2cxa, u0);
+	l2a := ZZ ! (Integers(c2a) ! Evaluate(lambc2xa, u0));
+	c2a0 := Gcd(c2a0, c2a);
+	c2b := ZZ ! Evaluate(g2cxb, u0);
+	l2b := ZZ ! (Integers(c2b) ! Evaluate(lambc2xb, u0));
+	c2b0 := Gcd(c2b0, c2b);
+	c2c := ZZ ! Evaluate(g2cxc, u0);
+	c2c0 := Gcd(c2c0, c2c); // multiple of 2
+	l2c := ZZ ! (Integers(c2c) ! Evaluate(lambc2xc, u0));
+	printf "short vector for fast G2 cofactor clearing mod g2a\n";
+	R := optimal_ate_pairing_fc(k, l2a, c2a);
+	printf "%o\n", R;
+	printf "short vector for fast G2 cofactor clearing mod g2b\n";
+	R := optimal_ate_pairing_fc(k, l2b, c2b);
+	printf "%o\n", R;
+	printf "short vector for fast G2 cofactor clearing mod g2c\n";
+	R := optimal_ate_pairing_fc(k, l2c, c2c);
+	printf "%o\n", R;
+	printf "\n";
+
+    end for;
+    printf "Gcd(all c2a) = %o\n", c2a0;
+    printf "Gcd(all c2b) = %o\n", c2b0;
+    printf "Gcd(all c2c) = %o\n", c2c0;
+
+end procedure;
+
+procedure formulas_FST63k22()
+    printf "\nFST 6.3 k=22\n";
+    k := 22;
+    rx, tx, qx, yx, cx, lambrx, D, k := get_fst63_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R;
+    assert ((x^2 - qx) mod rx) eq 0;
+    // combine Frobenius map with endomorphism of eigenvalue lambda
+    assert ((lambrx^2 + 1) mod rx) eq 0;
+    R := Matrix(QQx, 20, 20, [[rx,          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^8 mod rx,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^9 mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-lambrx,            0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx  *lambrx mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-qx^2*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx^3*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^4*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^5*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^6*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^7*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^8*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^9*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n", R;
+    //[ x  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0]
+    //[ 0  0  0  0  0  x  0  0  0  0 -1  0  0  0  0  0  0  0  0  0]
+    //[ 0  0  0  0  0  0 -1  0  0  0  x  0  0  0  0  0  0  0  0  0]
+    //[ 1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  x  0  0  0  0]
+    assert ((x + lambrx*qx^6) mod rx) eq 0;
+    assert ((-qx^6 + x*lambrx) mod rx) eq 0;
+    assert ((x*qx^5 - lambrx) mod rx) eq 0;
+    assert ((1 + x*lambrx*qx^5) mod rx) eq 0;
+    // one could do the same with -lambrx instead of lambrx.
+    R := Matrix(QQx, 20, 20, [[rx,                     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   *lambrx    mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 *lambrx^2  mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 *lambrx^3  mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 *lambrx^4  mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 *lambrx^5  mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 *lambrx^6  mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 *lambrx^7  mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^8 *lambrx^8  mod rx,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^9 *lambrx^9  mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^10*lambrx^10 mod rx,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx^11*lambrx^11 mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-qx^12*lambrx^12 mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx^13*lambrx^13 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^14*lambrx^14 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^15*lambrx^15 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^16*lambrx^16 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^17*lambrx^17 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^18*lambrx^18 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^19*lambrx^19 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n", R;
+    //[ 1  0  0  0  0  x  0  0  0  0  0  0  0  0  0  0  0  0  0  0]
+    //[ x  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 -1  0  0]
+    assert ((x - (lambrx*qx)^17) mod rx) eq 0;
+    assert ((1 + x*(lambrx*qx)^5) mod rx) eq 0;
+
+end procedure;
+
+procedure formulas_FST66k22()
+    printf "\nFST 6.6 k=22\n";
+    k := 22;
+    rx, tx, qx, yx, cx, lambrx, D, k := get_fst66_polynomials(k);
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n\n", R;
+    assert ((x - qx^4 + x^2*qx^7) mod rx) eq 0;
+    assert ((-1 + x^2*qx^3 - x*qx^7) mod rx) eq 0;
+    assert ((x^2 - x*qx^4 + qx^8) mod rx) eq 0;
+    // combine Frobenius map with endomorphism of eigenvalue lambda
+    assert ((lambrx^2 + lambrx + 1) mod rx) eq 0;
+    R := Matrix(QQx, 20, 20, [[rx,          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^8 mod rx,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^9 mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-lambrx,            0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx  *lambrx mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-qx^2*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx^3*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^4*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^5*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^6*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^7*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^8*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^9*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n\n", R;
+    assert ((1 + lambrx + x*qx^7*lambrx) mod rx) eq 0;
+    assert ((-qx^4 + x*lambrx - qx^4*lambrx) mod rx) eq 0;
+    assert ((x*qx^7 - lambrx) mod rx) eq 0;
+    assert ((x + qx^4*lambrx) mod rx) eq 0;
+
+    lambrx := -lambrx-1;
+    assert ((lambrx^2 + lambrx + 1) mod rx) eq 0;
+    R := Matrix(QQx, 20, 20, [[rx,          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^8 mod rx,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^9 mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-lambrx,            0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx  *lambrx mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-qx^2*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx^3*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^4*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^5*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^6*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^7*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^8*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^9*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n\n", R;
+    assert ((x - qx^4 - qx^4*lambrx) mod rx) eq 0;
+    assert ((1 + x*qx^7 + lambrx) mod rx) eq 0;
+    assert ((-1 + x*qx^7*lambrx) mod rx) eq 0;
+end procedure;
+
+procedure formulas_KSS22D7()
+    printf "\nNew KSS k=22 D=7\n";
+    k := 22;
+    rx, tx, qx, yx, cx, lambrx, D, k := get_kss22d7_polynomials();
+    R := optimal_ate_pairing_fc(k, qx, rx);
+    printf "%o\n", R; printf "\n";
+    assert ((x^2 -x*qx + 2*qx^2) mod rx) eq 0;
+    // combine Frobenius map with endomorphism of eigenvalue lambda
+    // x-super-optimal ate pairing, https://eprint.iacr.org/2022/716
+    // Emmanuel Fouotsa, Azebaze Guimagang Laurian, Ayissi Raoul
+    assert ((lambrx^2 + lambrx + 2) mod rx) eq 0;
+    R := Matrix(QQx, 20, 20, [[rx,          0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^8 mod rx,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^9 mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-lambrx,            0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx  *lambrx mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-qx^2*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx^3*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^4*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^5*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^6*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^7*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^8*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^9*lambrx mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n", R; printf "\n";
+    //[ 0 -2  0  0  0  0  0  0  0  0  x -1  0  0  0  0  0  0  0  0]
+    //[ x  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0]
+    assert ((x + qx*lambrx) mod rx) eq 0;
+    assert ((-2*qx + x*lambrx - qx*lambrx) mod rx) eq 0;
+    R := Matrix(QQx, 20, 20, [[rx,                     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx   *lambrx    mod rx,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^2 *lambrx^2  mod rx,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^3 *lambrx^3  mod rx,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^4 *lambrx^4  mod rx,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^5 *lambrx^5  mod rx,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^6 *lambrx^6  mod rx,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^7 *lambrx^7  mod rx,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^8 *lambrx^8  mod rx,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^9 *lambrx^9  mod rx,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0],\
+			      [-qx^10*lambrx^10 mod rx,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],\
+			      [-qx^11*lambrx^11 mod rx,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],\
+			      [-qx^12*lambrx^12 mod rx,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],\
+			      [-qx^13*lambrx^13 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],\
+			      [-qx^14*lambrx^14 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],\
+			      [-qx^15*lambrx^15 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],\
+			      [-qx^16*lambrx^16 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],\
+			      [-qx^17*lambrx^17 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],\
+			      [-qx^18*lambrx^18 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],\
+			      [-qx^19*lambrx^19 mod rx,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]]);
+    R := LLL(R);
+    printf "%o\n", R; printf "\n";
+    //[ x  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0]
+    assert ((x + qx*lambrx) mod rx) eq 0;
+end procedure;
+/*
+formulas_BN();
+formulas_Freeman();
+formulas_BLS12();
+formulas_BLS21();
+formulas_BLS24();
+formulas_BLS27();
+formulas_BLS48();
+formulas_KSS16();
+formulas_KSS18();
+formulas_FM23k16();
+formulas_AFG_k16();
+formulas_AFG_k16(:odd:=true);
+formulas_FM25k18();
+formulas_SG18a();
+formulas_SG18b();
+formulas_SG18c();
+formulas_SG20a();
+formulas_SG20b();
+formulas_FST66k20();
+formulas_FST64k20();
+formulas_FST64k28();
+formulas_KSS20a();
+formulas_KSS20b();
+formulas_FST63k22();
+formulas_FST66k22();
+formulas_KSS22D7();
+*/

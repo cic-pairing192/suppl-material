@@ -1,0 +1,1521 @@
+// script to run G2 subgroup membership testing test à la Yu Dai (ePrint 2022/348)
+load "final_exp_hard.mag";
+
+function good_bad_primes_g2cx(g2cx: B:=200)
+    gcd_g2 := Gcd([ZZ ! ci : ci in Eltseq(g2cx)]);
+    g2cx := (1 / gcd_g2) * g2cx;
+    printf "gcd(g2cx(m*x+u)) = %o = %o\n", gcd_g2, Factorization(gcd_g2);
+    good_l := [];
+    bad_l := [li[1] : li in Factorization(gcd_g2)];
+    for l in PrimesUpTo(B) do
+	if ((gcd_g2) mod l) ne 0 then
+	    Fl := GF(l);
+	    rr := Roots(ChangeRing(g2cx, Fl));
+	    if # rr eq 0 then
+		Append(~good_l, l);
+	    else
+		printf "l=%o, l | g2cx when x = %o mod %o\n", l, [rri[1] : rri in rr], l;
+		Append(~bad_l, l);
+	    end if;
+	end if;
+    end for;
+    printf "good l are %o no solution to g2cx = 0 mod l\n", good_l;
+    printf "bad  l are %o\n", bad_l;
+    return good_l, bad_l;
+end function;
+
+procedure test_smith15_g2_bn()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, D, k := get_bn_polynomials();
+    b0 := (tx+yx)/2;
+    c0 := yx;
+    b1 := [b0-1, c0];
+    deg_phi := 1; // characteristic polynomial is X^2+X+1 = X^2 -tr_phi*X + deg_phi
+    tr_phi := -1;
+    b2 := [c0*deg_phi + (b0-1)*tr_phi, 1-b0];
+    assert b2[1] eq (1 - (tx-yx)/2);
+    M := Matrix(QQx, 2, 2, [b1, b2]);
+    detM := Determinant(M);
+    printf "det(M) = det(b1, b2) = %o = (%o) * cx * rx\n", detM, detM div (rx*cx);
+
+    col_lambix := Matrix(QQx, 2, 1, [1, lambrx]);
+    assert ((M*col_lambix)[1][1] mod (rx*cx)) eq 0;
+    assert ((M*col_lambix)[2][1] mod (rx*cx)) eq 0;
+
+    // now G2
+    phi_k := EulerPhi(k);
+    col_qix := Matrix(QQx, phi_k, 1, [(qx^i mod rx) : i in [0..phi_k-1]]);
+
+    i0 := 1;
+    for vi in [[x+1, x, x, -2*x], [2*x, x+1, -x, x], [6*x+2, 1, -1, 1]] do
+	v0 := Matrix(QQx, 1, phi_k, vi); // formula from Vercauteren paper Optimal Pairings
+	eqv0 := (v0 * col_qix)[1][1];
+	if eqv0 eq 0 then
+	    printf "eq_v%o(Vercauteren) = 0\n", i0;
+	else
+	    assert (eqv0 mod rx) eq 0;
+	    printf "eq_v%o(Vercauteren) = %o = %o*rx = %o*rx\n", i0, eqv0, eqv0 div rx, Factorization(ZZ ! (eqv0 div rx));
+	end if;
+	i0 := i0 +1;
+    end for;
+    optimal_ate_pairing(k, qx mod rx, rx);
+    R := Matrix(QQx, 4, 4, [[-2, 1, 1, 6*x+1],\
+			     [1, -1, 6*x+1, 2],\
+			     [-1, 6*x+2, 2, -1],\
+			     [6*x+2, 1, -1, 1]]);
+
+    eqs := R * col_qix;
+    detR := Determinant(R); // this is 343*rx;
+    printf "det(R) = %o = %o * rx\n", detR, detR div rx, Factorization(ZZ ! (detR div rx));
+    i0 := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (qi mod rx) eq 0;
+	    gi := ZZ ! (qi div rx);
+	    printf "eq%o = %o = %o*rx = %o * rx\n", i0, qi, gi, Factorization(gi);
+	end if;
+        i0 := i0+1;
+    end for;
+    R0 := R;
+    l := 6;
+    Il := Integers(l);
+    Ilt<t> := PolynomialRing(Il);
+    R0_mod_l := ChangeRing(ChangeRing(R0, Ilt), Il);
+    Kl_mod_l := KernelMatrix(R0_mod_l);
+    ker_Kl := Kernel(R0_mod_l);
+    printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    printf "Kernel mod %o = \n%o\n", l, ker_Kl;
+    Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+    //KernelMatrix mod 6 =
+    //[3 4 0 1]
+    //[1 3 1 0]
+    //Echelonized basis:
+    //(1 0 4 3)
+    //(0 1 3 1)
+    //Kl := Matrix(QQx, 2, 4, [[1,0,4,3], [0,1,3,1]]);
+    R1 := (1/6) * Kl * R0;
+    eqs := R1 * col_qix;
+    i0 := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (qi mod rx) eq 0;
+	    gi := ZZ ! (qi div rx);
+	    printf "eq%o = %o = %o*rx = %o * rx\n", i0, qi, gi, Factorization(gi);
+	end if;
+        i0 := i0+1;
+    end for;
+
+    // find the best linear combination of the solutions made of the kernel
+    // [1 0 4 3]
+    // [0 1 3 1]
+    min_g := 1;
+    max_i := 3;
+    mid_l := (l+1) div 2;
+    A := 2;
+    for a0 := -A to A do
+	for a1 := -A to A do
+	    for a2 := -A to A do
+		for a3 := -A to A do
+		    for b0 := -mid_l to mid_l do
+			for b1 := -mid_l to mid_l do
+			    if Gcd(b0, b1) ne 1 then
+				continue;
+			    end if;
+			    // make a linear combination of the eigenvectors modulo l, then lift and add any multiple of l
+			    Kli := l * Matrix(QQx, 1, 4, [a0, a1, a2, a3]) + ChangeRing(ChangeRing(b0 * Matrix(Il, 1, 4, Eltseq(Kl_mod_l[1])) + b1 * Matrix(Il, 1, 4, Eltseq(Kl_mod_l[2])), ZZ), QQx);
+			    Rl := (1/l) * Kli * R0;
+			    eqs := Rl * col_qix;
+			    i0 := 1;
+			    for qi in Eltseq(eqs) do
+				if qi ne 0 then
+				    assert (qi mod rx) eq 0;
+				    g := qi div rx;
+				    if Degree(g) eq 0 then
+					g := ZZ ! g;
+					if Abs(g) le min_g and Max([Max([Abs(ci) : ci in Eltseq(ri)]) : ri in Eltseq(Rl[i0]) | ri ne 0]) le max_i then
+					    printf "ker([a0,a1,a2,a3]=%o,%o,%o,%o,[b0,b1]=%o,%o) = %o v = %o eq = %o*rx = %o * rx\n", a0, a1, a2, a3, b0, b1, Kli[i0], Rl[i0], qi div rx, Factorization(g);
+					end if;
+				    end if;
+				end if;
+				i0 := i0+1;
+			    end for;
+			end for;
+		    end for;
+		end for;
+	    end for;
+	end for;
+    end for;
+
+    // with smallest coeffs:
+    // ker([a0,a1,a2,a3]=-1, 0, 0,-1,[b0,b1]=-1, 2) = (-1  2  2 -1) v = (      -x      2*x  2*x + 1       -x) eq = -1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0,-1,-1, 0,[b0,b1]= 1,-2) = ( 1 -2 -2  1) v = (       x     -2*x -2*x - 1        x) eq =  1*rx = [] * rx
+    // ker([a0,a1,a2,a3]=-1, 0, 0, 0,[b0,b1]= 1, 1) = (-2  1  1  1) v = (   x + 1        x        x     -2*x) eq =  1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0,-1,-1,-1,[b0,b1]=-1,-1) = ( 2 -1 -1 -1) v = (  -x - 1       -x       -x      2*x) eq = -1*rx = [] * rx
+    // with a zero:
+    // ker([a0,a1,a2,a3]=-1, 0, 0, 0,[b0,b1]=-3, 2) = (-1  0  2  3) v = ( 3*x + 1  2*x + 1        0       -x) eq =  1*rx = [] * rx
+    // ker([a0,a1,a2,a3]=-1, 0, 0, 0,[b0,b1]= 3, 2) = (-1  0  2  3) v = ( 3*x + 1  2*x + 1        0       -x) eq =  1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0,-1,-1,-1,[b0,b1]=-1,-3) = ( 0 -1 -3 -1) v = (      -x -3*x - 1   -x - 1        0) eq =  1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0,-1,-1,-1,[b0,b1]=-1, 3) = ( 0 -1 -3 -1) v = (      -x -3*x - 1   -x - 1        0) eq =  1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0, 0,-1,-1,[b0,b1]=-3,-2) = ( 1  0 -2 -3) v = (-3*x - 1 -2*x - 1        0        x) eq = -1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0, 0,-1,-1,[b0,b1]= 3,-2) = ( 1  0 -2 -3) v = (-3*x - 1 -2*x - 1        0        x) eq = -1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0, 0, 0, 0,[b0,b1]= 1,-3) = ( 0  1  3  1) v = (       x  3*x + 1    x + 1        0) eq = -1*rx = [] * rx
+    // ker([a0,a1,a2,a3]= 0, 0, 0, 0,[b0,b1]= 1, 3) = ( 0  1  3  1) v = (       x  3*x + 1    x + 1        0) eq = -1*rx = [] * rx
+
+    // test Th 1 condition in Yu Dai paper
+    QQxX<X> := PolynomialRing(QQx);
+    gX := X^2 - tx*X + qx; // characteristic polynomial of psi
+
+    list_v := [[       x,     -2*x, -2*x - 1,        x],
+	       [   x + 1,        x,        x,     -2*x],
+	       [ 3*x + 1,  2*x + 1,        0,       -x],
+	       [      -x, -3*x - 1,   -x - 1,        0]];
+
+    for v in list_v do
+	short_vector := QQxX ! v;
+	res1 := Resultant(gX, short_vector mod gX);
+	res2 := ZZ ! Resultant(g2cx, res1);
+	printf "v = %o\nres2 = %o = %o\n", short_vector, res2, Factorization(res2);
+	//bad_primes := [];
+	for li_ei in Factorization(res2) do
+	    li, ei := Explode(li_ei);
+	    // do g2cx and res1 have a common root mod li?
+	    Fl := GF(li);
+	    Flz<z> := PolynomialRing(Fl);
+	    rr1 := [ri[1] : ri in Roots(ChangeRing(g2cx, Flz))];
+	    rr2 := [ri[1] : ri in Roots(ChangeRing(res1, Flz))];
+	    inter := [ri : ri in rr1 | ri in rr2];
+	    //Append(~bad_primes, <li, inter>);
+	    if # inter gt 0 then
+		printf "bad prime %o with bad seeds %o\n", li, inter;
+	    end if;
+	end for;
+    end for;
+
+end procedure;
+
+procedure test_smith15_g1_kss16()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss16_polynomials();
+    b0 := tx/2;
+    c0 := yx/2;
+    b1 := [b0-1, c0];
+    b2 := [c0, 1-b0];
+    M := Matrix(QQx, 2, 2, [b1, b2]);
+    detM := Determinant(M);
+    printf "det(M) = det(b1, b2) = %o = (%o) * cx * rx\n", detM, detM div (rx*cx);
+    // the aim is to simplify cx -> let's get a left kernel modulo cx
+    K<a> := NumberField(cx);
+    Ma := Matrix(K, 2, 2, [Evaluate(b1[1], a), Evaluate(b1[2], a), Evaluate(b2[1], a), Evaluate(b2[2], a)]);
+    ker_ca := KernelMatrix(Ma);
+    ker_cx := Matrix(QQx, 2, 2, [[QQx ! Eltseq(ker_ca[1][1]), QQx ! Eltseq(ker_ca[1][2])],\
+				 [-QQx ! Eltseq(ker_ca[1][2]), QQx ! Eltseq(ker_ca[1][1])]]);
+    printf "ker_cx = \n%o\n", ker_cx;
+    //ker_cx =
+    //[           1 -1/2*x - 1/2]
+    //[ 1/2*x + 1/2            1]
+    N := ker_cx * M;
+    assert (N[1][1] mod cx) eq 0;
+    assert (N[1][2] mod cx) eq 0;
+    assert (N[2][1] mod cx) eq 0;
+    assert (N[2][2] mod cx) eq 0;
+    R := ChangeRing((1250/cx) * N, QQx);
+    // ker = [      1,   -(x + 1)/2]
+    //       [(x+1)/2,            1]
+    // (a0 * cx + 1)*M[1] + (a1*cx -(x+1)/2)*M[2] can be simplified by cx/1250
+    // find lambx, not mod r, not mod c
+    gg, inv_yx, _ := Xgcd(yx, cx*rx);
+    lambx := ((tx-2)*inv_yx) mod (rx*cx);
+    assert (lambx mod rx) eq lambrx;
+    assert (lambx mod cx) eq lambcx;
+    col_lambix := Matrix(QQx, 2, 1, [1, -lambx]); // a column vector made of 1 and -lambx so that a scalar product of a row vector [a0,a1] and col_lambix means a0 - a1*lambx
+    assert ((M*col_lambix)[1][1] mod (rx*cx)) eq 0;
+    assert ((M*col_lambix)[2][1] mod (rx*cx)) eq 0;
+    col_lambrix := Matrix(QQx, 2, 1, [1, -lambrx]);
+
+    A := 10;
+    mid := 10;
+    min_g := 1250;
+    for a0 := -A to A do
+	for a1 := -A to A do
+	    for b0 := -mid to mid do
+		for b1 := -mid to mid do
+		    if Gcd(b0, b1) ne 1 then
+			continue;
+		    end if;
+		    // find linear combinations to simplify by cx at the end
+		    //ker := Matrix(QQx, 1, 2, [a0 * cx + b0*ker_cx[1][1] + b1*ker_cx[2][1], a1*cx + b0*ker_cx[1][2] + b1*ker_cx[2][2]]);
+		    ker := cx * Matrix(QQx, 1, 2, [a0, a1]) + b0 * Matrix(QQx, 1, 2, Eltseq(ker_cx[1])) + b1 * Matrix(QQx, 1, 2, Eltseq(ker_cx[2]));
+		    N1 := ker * M;
+		    assert (N1[1][1] mod cx) eq 0;
+		    assert (N1[1][2] mod cx) eq 0;
+		    //R1 := ChangeRing((1250/cx) * N1, QQx);
+		    R1 := Matrix(QQx, 1, 2, [N1[1][1] div (cx/1250), N1[1][2] div (cx / 1250)]);
+		    eqs := R1 * col_lambrix;
+		    i0 := 1;
+		    for li in Eltseq(eqs) do
+			if li ne 0 then
+			    assert (li mod rx) eq 0;
+			    g := (li div rx); // it is not an integer
+			    //if Gcd(g, &* bad_l) eq 1 then
+			    if Degree(g) eq 0 then
+				g := ZZ ! g;
+				if Abs(g) le min_g then
+				    printf "ker([a0,a1]=%o,%o,[b0,b1]=%o,%o) = %o v = %o eq = %o*rx = %o * rx\n", a0, a1, b0, b1, ker[i0], R1[i0], li div rx, Factorization(g);
+				end if;
+			    end if;
+			else
+			    printf "ker([a0,a1]=%o,%o,[b0,b1]=%o,%o) = %o v = %o eq = 0\n", a0, a1, b0, b1, ker[i0], R1[i0];
+			end if;
+			i0 := i0+1;
+		    end for;
+		end for;
+	    end for;
+	end for;
+    end for;
+    //ker([a0,a1]=0,0,[b0,b1]=-1,1) = (1/2*x - 1/2 1/2*x + 3/2) v = (3/7*x^4 + 79/7 -1/7*x^4 - 3/7) eq = 1250*rx = [ <2, 1>, <5, 4> ] * rx
+    //ker([a0,a1]=0,0,[b0,b1]=-1,2) = (          x 1/2*x + 5/2) v = (5/7*x^4 + 120/7               5) eq = 0
+    //ker([a0,a1]=0,0,[b0,b1]=-1,3) = (3/2*x + 1/2 1/2*x + 7/2) v = (      x^4 + 23 1/7*x^4 + 73/7) eq = -1250*rx = [ <2, 1>, <5, 4> ] * rx
+    //ker([a0,a1]=0,0,[b0,b1]=0,-1) = (-1/2*x - 1/2           -1) v = (-2/7*x^4 - 41/7 -1/7*x^4 - 38/7) eq = 1250*rx = [ <2, 1>, <5, 4> ] * rx
+
+    M1 := Matrix(QQx, 2, 2, [[(2*x^4+41)/7, (x^4+38)/7],\
+			     [(x^4+24)/7, 1]]);
+    K0 := Matrix(QQx, 2, 2, [[1/5, -2/5], [0, 1]]);
+    chgmt := Matrix(QQx, 2, 2, [[1, 0], [-2, -1]]);
+    S := ChangeRing((1250/cx) * (chgmt * K0 * ker_cx) * M, QQx);
+    // one gets [[1, lambrx], [-lambrx, 1]]
+    // finally this is about shortening that matrix.
+    detS := Determinant(S);
+    // S
+    //[-1/7*x^4 - 24/7              -1]
+    //[              1 -1/7*x^4 - 24/7]
+    printf "det(S) = det([1, lambrx], [-lambrx, 1]) = %o = (%o) * rx\n", detS, detS div rx;
+    // this is -1250 = 2 * 5^4
+    // remember that x = 70*u + 25 or 70*u + 45 --> x = 10*u0 + 5
+    z := 10*x + 5;
+    qz := Evaluate(qx, z);
+    rz := Evaluate(rx, z);
+    lambrz := Evaluate(lambrx, z);
+    R0 := Matrix(QQx, 2, 2, [[1, lambrz], [-lambrz, 1]]);
+    printf "R0 =\n%o\n", R0;
+    assert (Determinant(R0) mod rz) eq 0;
+    printf "det(R0) = (%o) * rz\n", Determinant(R0) div rz; // this is something*rx;
+    // det(R0) = (1250) * rz
+    col_liz := Matrix(2, 1, [1, lambrz]);
+    eqs := R0 * col_liz;
+    i0 := 0;
+    for li in Eltseq(eqs) do
+	if li eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (li mod rz) eq 0;
+	    printf "eq%o = %o*rz = %o * rz\n", i0, li div rz, Factorization(ZZ ! (li div rz));
+	end if;
+        i0 := i0+1;
+    end for;
+    //eq0 = 1250*rz = [ <2, 1>, <5, 4> ] * rz
+    //eq1 = 0
+    //l := 5;
+    //Fl := GF(l);
+    //Flt<t> := PolynomialRing(Fl);
+    //R0_mod_l := ChangeRing(ChangeRing(R0, Flt), Fl);
+    //Kl_mod_l := KernelMatrix(R0_mod_l);
+    //printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    //Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+    // Vector space of degree 2, dimension 1 over GF(5)
+    // Echelonized basis:
+    // (1 3)
+    // -->
+    // [1 3]
+    // [2 1]
+    l := 2*5^4;
+    I5 := Integers(l);
+    I5t<t> := PolynomialRing(I5);
+    R0_mod_l := ChangeRing(ChangeRing(R0, I5t), I5);
+    Kl_mod_l := KernelMatrix(R0_mod_l);
+    printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+
+    //KernelMatrix mod 1250 =
+    //[807   1]
+
+    // now find linear combinations
+
+    min_g := 1;
+    A := 10;
+    for a0 := -A to A do
+	for a1 := -A to A do
+	    Kl := Matrix(QQx, [[l*a0+((807*j0) mod l), l*a1+((1*j0) mod l)] : j0 in [1..l-1] | Gcd(j0, l) eq 1]);
+	    Rl := (1/l) * Kl * R0;
+	    eqsl := Rl * col_liz;
+	    i0 := 1;
+	    for qi in Eltseq(eqsl) do
+		if qi ne 0 then
+		    assert (qi mod rz) eq 0;
+		    g := ZZ ! (qi div rz);
+		    if Abs(g) le min_g then
+			printf "ker(a=%o,b=%o,i=%o) = %o v = %o eq = %o*rz = %o * rz\n", a0, a1, i0, Kl[i0], Rl[i0], qi div rz, Factorization(g);
+		    end if;
+		else
+		    printf "eq%o = 0\n", i0;
+		end if;
+		i0 := i0+1;
+	    end for;
+	end for;
+    end for;
+
+    //ker(a=0,b=0,i=178) = (  1 443) v = (-3544/7*x^4 - 7088/7*x^3 - 5316/7*x^2 - 1772/7*x - 230/7              8/7*x^4 + 16/7*x^3 + 12/7*x^2 + 4/7*x + 3/7) eq = 1*rz = [] * rz
+    v := [-3544/7*x^4 - 7088/7*x^3 - 5316/7*x^2 - 1772/7*x - 230/7, 8/7*x^4 + 16/7*x^3 + 12/7*x^2 + 4/7*x + 3/7];
+    Evaluate(v[1], (x-5)/10); // -443/8750*x^4 - 17/14
+    Evaluate(v[1], (x-5)/10) eq (-443*(x/5)^4-17)/14;
+    Evaluate(v[2], (x-5)/10); // 1/8750*x^4 + 5/14
+    Evaluate(v[2], (x-5)/10) eq ((x/5)^4+5)/14;
+end procedure;
+
+procedure test_smith15_g2_kss16()
+    // start over. the determinant of the matrix is 61250 * rx = 2 * 5^4 * 7^2 * rx
+    // but note that 7 | g2cx <=> u = 6 mod 7, but actually, u = 3,4 mod 7 as u=25,45 mod 70
+    // so 7 is never a problem, g2cx is always coprime to 7.
+    // 5 is never a problem as g2cx has no root mod 5
+    // 2 is a problem as 2 | g2cx always
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss16_polynomials();
+    // what are the small factors of g2cx?
+    lcm_g2 := Lcm([Denominator(ci) : ci in Eltseq(g2cx)]);
+    for res_mod_70 in [45, 25] do
+	g2cx_70 := Evaluate(g2cx, 70*x + res_mod_70);
+	gcd_g2 := Gcd([ZZ ! ci : ci in Eltseq(g2cx_70)]);
+	good_l, bad_l := good_bad_primes_g2cx(g2cx_70: B:=200);
+    end for;
+    res_mod_70 := 25;
+
+    phi_k := EulerPhi(k);
+    col_qix := Matrix(QQx, phi_k, 1, [(qx^i mod rx) : i in [0..phi_k-1]]); // column vector of q^i
+
+    v0 := Matrix(QQx, 1, phi_k, [-11/70*x + 1/14, 9/70*x + 3/14, -3/70*x - 1/14, -3/70*x - 1/14, 13/70*x - 5/14, -1/10*x + 1/2, -1/70*x - 5/14, -11/70*x + 1/14]);// yu dai
+    x1 := (x-45)/70;
+    v1 := Matrix(QQx, 1, phi_k, [14*x1+9, 1, 0, 0, 28*x1+18, 0, 0, 0]); // [1/5*x, 1, 0, 0, 2/5*x, 0, 0, 0]
+    x2 := (x-25)/70;
+    v2 := Matrix(QQx, 1, phi_k, [14*x2+5, 1, 0, 0, 28*x2+10, 0, 0, 0]); // [1/5*x, 1, 0, 0, 2/5*x, 0, 0, 0]
+    v3 := Matrix(QQx, 1, phi_k, [27*x2+10, 3*x2+2, 15*x2+6, 13*x2+5, 19*x2+7, 21*x2+7, 5*x2+2, x2]);
+    // [27/70*x + 5/14 3/70*x + 13/14  3/14*x + 9/14 13/70*x + 5/14 19/70*x + 3/14   3/10*x - 1/2  1/14*x + 3/14  1/70*x - 5/14]
+    v4 := Matrix(QQx, 1, phi_k, [29*x1+19, 3*x1+3, 27*x1+18, 13*x1+9, 23*x1+15, 21*x1+13, 9*x1+6, x1]);
+    // [29/70*x + 5/14 3/70*x + 15/14 27/70*x + 9/14 13/70*x + 9/14 23/70*x + 3/14   3/10*x - 1/2  9/70*x + 3/14  1/70*x - 9/14]
+    for vs in [<v0, "(YuDai)">, <v1, "1">, <v2, "2">, <v3, "3">, <v4, "4">] do
+	v, str := Explode(vs);
+	eqv := (v * col_qix)[1][1];
+	if eqv eq 0 then
+	    printf "eq_v%o = 0\n", str;
+	else
+	    assert (eqv mod rx) eq 0;
+	    printf "eq_v%o = %o = %o*rx = %o*rx\n", str, eqv, eqv div rx, Factorization(ZZ ! (eqv div rx));
+	end if;
+    end for;
+    //eq_v(YuDai) = 127/61250*x^8 + 3048/30625*x^4 + 127/98 = 127*rx = [ <127, 1> ]*rx
+    // the short vectors given by a basic LLL are
+    R := optimal_ate_pairing_fc(k, qx mod rx, rx);
+    eqs := R * col_qix;
+    detR := Determinant(R); // this is 61250*rx;
+    printf "det(R) = %o = %o * rx\n", detR, detR div rx, Factorization(ZZ ! (detR div rx));
+    i0 := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (qi mod rx) eq 0;
+	    gi := ZZ ! (qi div rx);
+	    printf "eq%o = %o = %o*rx = %o * rx\n", i0, qi, gi, Factorization(gi);
+	end if;
+        i0 := i0+1;
+    end for;
+    //x0 := 70*x + 25;
+    //g2cx_70 := Evaluate(g2cx, 70*x + 25);
+    x0 := 70*x + 45;
+    g2cx_70 := Evaluate(g2cx, 70*x + 45);
+    //x0 := 10*x + 5;
+    //g2cx_10 := Evaluate(g2cx, 10*x + 5);
+    gcd_g2 := Gcd([ZZ ! ci : ci in Eltseq(g2cx_70)]);
+    good_l, bad_l := good_bad_primes_g2cx(g2cx_70: B:=200);
+    prod_bad_l := gcd_g2 * &*bad_l;
+    if ((prod_bad_l mod 7) eq 0) then
+	prod_bad_l := prod_bad_l div 7;
+    end if;
+
+    R0 := Matrix(QQx, 8, 8, [[-1,  0,  0,  0,  2,  0,  0,  x0],
+			    [ 0,  0,  0,  2,  0,  0,  x0,  1],
+			    [ 0,  0,  2,  0,  0,  x0,  1,  0],
+			    [ 0,  2,  0,  0,  x0,  1,  0,  0],
+			    [ 2,  0,  0,  x0,  1,  0,  0,  0],
+			    [ 0,  0,  x0,  1,  0,  0,  0, -2],
+			    [ 0,  x0,  1,  0,  0,  0, -2,  0],
+			     [ x0,  1,  0,  0,  0, -2,  0,  0]]);
+    qx0 := Evaluate(qx, x0);
+    rx0 := Evaluate(rx, x0);
+    col_qix0 := Matrix(QQx, phi_k, 1, [(qx0^i mod rx0) : i in [0..phi_k-1]]); // column vector of q^i
+    l := 2*5*7;
+    l0 := 2;
+    Il := Integers(l);
+    Ilt<t> := PolynomialRing(Il);
+    R0_mod_l := ChangeRing(ChangeRing(R0, Ilt), Il);
+    Kl_mod_l := KernelMatrix(R0_mod_l);
+    ker_Kl := Kernel(R0_mod_l);
+    printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    printf "Kernel mod %o = \n%o\n", l, ker_Kl;
+    Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+    //KernelMatrix mod 70 =
+    //[42  0  0  0 56  0  0  0]
+    //[ 0  0 14  0  0  0 42  0]
+    //[46  2 68 50 58 16 24  0]
+    //[35 69 59 67  5 17 17  1]
+    //Echelonized basis:
+    //( 1  1  5  7 33 13 15 31)
+    //( 0  2  8  6 60 36 64 68)
+    //( 0  0 14  0  0  0 42  0)
+    //( 0  0  0 14  0  0  0 42)
+    //KernelMatrix mod 10 =
+    //[0 4 0 0 0 2 0 0]
+    //[4 0 0 0 2 0 0 0]
+    //[0 0 0 2 0 0 0 6]
+    //[3 3 7 9 9 9 1 7]
+    //Kernel mod 10 =
+    //RSpace of degree 8, dimension 4 over IntegerRing(10)
+    //Echelonized basis:
+    //(1 1 1 1 3 3 3 3)
+    //(0 2 0 0 0 6 0 0)
+    //(0 0 2 0 0 0 6 0)
+    //(0 0 0 2 0 0 0 6)
+    R1 := (1/l)*(Kl * R0);
+    printf "R1 = %o\n", R1;
+    eqs := R1 * col_qix0;
+    i0 := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (qi mod rx0) eq 0;
+	    gi := ZZ ! (qi div rx0);
+	    printf "eq%o = %o = %o*rx0 = %o * rx0\n", i0, qi, gi, Factorization(gi);
+	end if;
+        i0 := i0+1;
+    end for;
+
+    // find the best linear combination of the solutions made of the kernel
+    min_g := 1000;
+    max_i := 25;
+    // make a list of the coefficients and check each time if it is already in the list or not
+    list_equations := [];
+    list_hashes := [];
+    mid_l := (l+1) div 2;
+    A_ := 0;
+    A := 0;
+    for a0 := A_ to A do
+	for a1 := A_ to A do
+	    for a2 := A_ to A do
+		for a3 := A_ to A do
+		    for a4 := A_ to A do
+			for a5 := A_ to A do
+			    for a6 := A_ to A do
+				for a7 := A_ to A do
+				    for b0 := -mid_l+1 to mid_l do
+					for b1 := -mid_l+1 to mid_l do
+					    for b2 := -mid_l+1 to mid_l do
+						for b3 := -mid_l+1 to mid_l do
+						    if Gcd([b0, b1, b2, b3]) ne 1 then
+							continue;
+						    end if;
+						    // make a linear combination of the eigenvectors modulo l, then lift and add any multiple of l
+						    Kli := l * Matrix(QQx, 1, 8, [a0,a1,a2,a3,a4,a5,a6,a7]) + ChangeRing(ChangeRing(b0 * Matrix(Il, 1, 8, Eltseq(Kl_mod_l[1])) + b1 * Matrix(Il, 1, 8, Eltseq(Kl_mod_l[2])) + b2 * Matrix(Il, 1, 8, Eltseq(Kl_mod_l[3])) + b3 * Matrix(Il, 1, 8, Eltseq(Kl_mod_l[4])), ZZ), QQx);
+						    Rl := (1/l) * Kli * R0;
+						    eqs := Rl * col_qix0;
+						    i0 := 1;
+						    for qi in Eltseq(eqs) do
+							if qi ne 0 then
+							    assert (qi mod rx0) eq 0;
+							    g := qi div rx0;
+							    if Degree(g) eq 0 then
+								g := ZZ ! g;
+								if (Gcd(g, l0) eq 1) and (Gcd(g, prod_bad_l) eq 1) and (Abs(g) le min_g) and Max([Max([Abs(ci) : ci in Eltseq(ri)]) : ri in Eltseq(Rl[i0]) | ri ne 0]) le max_i then
+								    // is it already in the list?
+								    ri0 := [Evaluate(QQx ! ri, 19) : ri in Eltseq(Rl[i0])];
+								    hash := &+[ri0[i]*1009^(i-1) : i in [1..#ri0]];
+								    if not hash in list_hashes then
+									printf "ker([a0,a1,a2,a3,a4,a5,a6,a7]=%o,%o,%o,%o,%o,%o,%o,%o,[b0,b1,b2,b3]=%3o,%3o,%3o,%3o) = %o v = %o eq = %o*rx = %o * rx\n", a0,a1,a2,a3,a4,a5,a6,a7, b0,b1,b2,b3, Kli[i0], Rl[i0], qi div rx0, Factorization(g);
+									Append(~list_hashes, hash);
+									Append(~list_equations, <Rl[i0], qi div rx0, [a0,a1,a2,a3,a4,a5,a6,a7], [b0,b1,b2,b3]>);
+								    end if;
+								end if;
+							    end if;
+							elif Max([Max([Abs(ci) : ci in Eltseq(ri)]) : ri in Eltseq(Rl[i0]) | ri ne 0]) le max_i then
+							    // a zero-equation, keep some of them to be able to reduce the matrix further at the next step
+							    ri0 := [Evaluate(QQx ! ri, 19) : ri in Eltseq(Rl[i0])];
+							    hash := &+[ri0[i]*1009^(i-1) : i in [1..#ri0]];
+							    if not hash in list_hashes then
+								printf "ker([a0,a1,a2,a3,a4,a5,a6,a7]=%o,%o,%o,%o,%o,%o,%o,%o,[b0,b1,b2,b3]=%3o,%3o,%3o,%3o) = %o v = %o eq = %o*rx\n", a0,a1,a2,a3,a4,a5,a6,a7, b0,b1,b2,b3, Kli[i0], Rl[i0], 0;
+								Append(~list_hashes, hash);
+								Append(~list_equations, <Rl[i0], 0, [a0,a1,a2,a3,a4,a5,a6,a7], [b0,b1,b2,b3]>);
+							    end if;
+							end if;
+							i0 := i0+1;
+						    end for;// eqs
+						end for;// b3
+					    end for;// b2
+					end for;// b1
+				    end for;// b0
+				end for;// a7
+			    end for;// a6
+			end for;// a5
+		    end for;// a4
+		end for;// a3
+	    end for;// a2
+	end for;// a1
+    end for;// a0
+end procedure;
+
+procedure test_smith15_g2_new16_odd()
+    rx, tx, qx, yx, cx, lambrx, lambc0x, g2cx, txe, yxe, D, k := get_afg_k16_polynomials();
+
+    rx := rx/2;
+    cx := cx*2;
+    g2cx := g2cx*2;
+
+    lcm_g2 := Lcm([Denominator(ci) : ci in Eltseq(g2cx)]);
+    g2cx_2 := Evaluate(g2cx, 2*x + 1);
+    gcd_g2 := Gcd([ZZ ! ci : ci in Eltseq(g2cx_2)]);
+    good_l, bad_l := good_bad_primes_g2cx(g2cx_2: B:=200);
+
+    phi_k := EulerPhi(k);
+    col_qix := Matrix(QQx, phi_k, 1, [(qx^i mod rx) : i in [0..phi_k-1]]); // column vector of q^i
+
+    v1 := Matrix(QQx, 1, phi_k, [-1,  0,  0,  x,  0,  0,  0,  0]);
+    v2 := Matrix(QQx, 1, phi_k, [x,  0,  0,  0,  0,  1,  0,  0]);
+    x1 := (x-1)/2;
+    x2 := (x+1)/2;
+    v3 := Matrix(QQx, 1, phi_k, [x1,  x1,  x1,  x1,  x1,  x2,  x2,  x2]);
+
+    for vs in [<v1, "1">, <v2, "2"> , <v3, "3">] do //, <v4, "4">
+	v, str := Explode(vs);
+	eqv := (v * col_qix)[1][1];
+	if eqv eq 0 then
+	    printf "eq_v%o = 0\n", str;
+	else
+	    assert (eqv mod rx) eq 0;
+	    printf "eq_v%o = %o = %o*rx = %o*rx\n", str, eqv, eqv div rx, Factorization(ZZ ! (eqv div rx));
+	end if;
+    end for;
+
+    R := optimal_ate_pairing_fc(k, qx mod rx, rx);
+    eqs := R * col_qix;
+    detR := Determinant(R); // this is 61250*rx;
+    printf "det(R) = %o = %o * rx\n", detR, detR div rx, Factorization(ZZ ! (detR div rx));
+    i0 := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (qi mod rx) eq 0;
+	    gi := ZZ ! (qi div rx);
+	    printf "eq%o = %o = %o*rx = %o * rx\n", i0, qi, gi, Factorization(gi);
+	end if;
+        i0 := i0+1;
+    end for;
+
+    x0 := 2*x+1;
+    g2cx_2 := Evaluate(g2cx, x0);
+    gcd_g2 := Gcd([ZZ ! ci : ci in Eltseq(g2cx_2)]);
+    good_l, bad_l := good_bad_primes_g2cx(g2cx_2: B:=200);
+    prod_bad_l := gcd_g2 * &*bad_l;
+
+    R0 := Matrix(QQx, 8, 8, [[ 0,  0,  0,  0, -1,  0,  0, x0],
+			     [ 0,  0,  0, -1,  0,  0, x0,  0],
+			     [ 0,  0, -1,  0,  0, x0,  0,  0],
+			     [ 0, -1,  0,  0, x0,  0,  0,  0],
+			     [-1,  0,  0, x0,  0,  0,  0,  0],
+			     [ 0,  0, x0,  0,  0,  0,  0,  1],
+			     [ 0, x0,  0,  0,  0,  0,  1,  0],
+			     [x0,  0,  0,  0,  0,  1,  0,  0]]);
+    qx0 := Evaluate(qx, x0);
+    rx0 := Evaluate(rx, x0);
+    col_qix0 := Matrix(QQx, phi_k, 1, [(qx0^i mod rx0) : i in [0..phi_k-1]]); // column vector of q^i
+    l := 2;
+    Il := Integers(l);
+    Ilt<t> := PolynomialRing(Il);
+    R0_mod_l := ChangeRing(ChangeRing(R0, Ilt), Il);
+    Kl_mod_l := KernelMatrix(R0_mod_l);
+    ker_Kl := Kernel(R0_mod_l);
+    printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    printf "Kernel mod %o = \n%o\n", l, ker_Kl;
+    Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+
+    R1 := (1/l)*(Kl * R0);
+    printf "R1 = %o\n", R1;
+    eqs := R1 * col_qix0;
+    i0 := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (qi mod rx0) eq 0;
+	    gi := ZZ ! (qi div rx0);
+	    printf "eq%o = %o = %o*rx0 = %o * rx0\n", i0, qi, gi, Factorization(gi);
+	end if;
+        i0 := i0+1;
+    end for;
+    // find the best linear combination of the solutions made of the kernel
+    min_g := 1;
+    max_i := 1;
+    // make a list of the coefficients and check each time if it is already in the list or not
+    list_equations := [];
+    list_hashes := [];
+    mid_l := (l+1) div 2;
+    A_ := -1;
+    A := 1;
+    for a0 := A_ to A do
+	for a1 := A_ to A do
+	    for a2 := A_ to A do
+		for a3 := A_ to A do
+		    for a4 := A_ to A do
+			for a5 := A_ to A do
+			    for a6 := A_ to A do
+				for a7 := A_ to A do
+				    for b0 := -mid_l+1 to mid_l do
+					if Abs(b0) ne 1 then
+					    continue;
+					end if;
+					// make a linear combination of the eigenvectors modulo l, then lift and add any multiple of l
+					Kli := l * Matrix(QQx, 1, 8, [a0,a1,a2,a3,a4,a5,a6,a7]) + ChangeRing(ChangeRing(b0 * Matrix(Il, 1, 8, Eltseq(Kl_mod_l[1])), ZZ), QQx);
+					Rl := (1/l) * Kli * R0;
+					eqs := Rl * col_qix0;
+					i0 := 1;
+					for qi in Eltseq(eqs) do
+					    if qi ne 0 then
+						assert (qi mod rx0) eq 0;
+						g := qi div rx0;
+						if Degree(g) eq 0 then
+						    g := ZZ ! g;
+						    if (Gcd(g, l) eq 1) and (Gcd(g, prod_bad_l) eq 1) and (Abs(g) le min_g) and Max([Max([Abs(ci) : ci in Eltseq(ri)]) : ri in Eltseq(Rl[i0]) | ri ne 0]) le max_i then
+							// is it already in the list?
+							ri0 := [Evaluate(QQx ! ri, 19) : ri in Eltseq(Rl[i0])];
+							hash := &+[ri0[i]*1009^(i-1) : i in [1..#ri0]];
+							if not hash in list_hashes then
+							    printf "ker([a0,a1,a2,a3,a4,a5,a6,a7]=%o,%o,%o,%o,%o,%o,%o,%o,[b0]=%3o) = %o v = %o eq = %o*rx = %o * rx\n", a0,a1,a2,a3,a4,a5,a6,a7, b0, Kli[i0], Rl[i0], qi div rx0, Factorization(g);
+							    Append(~list_hashes, hash);
+							    Append(~list_equations, <Rl[i0], qi div rx0, [a0,a1,a2,a3,a4,a5,a6,a7], [b0]>);
+							end if;
+						    end if;
+						end if;
+					    elif Max([Max([Abs(ci) : ci in Eltseq(ri)]) : ri in Eltseq(Rl[i0]) | ri ne 0]) le max_i then
+						// a zero-equation, keep some of them to be able to reduce the matrix further at the next step
+						ri0 := [Evaluate(QQx ! ri, 19) : ri in Eltseq(Rl[i0])];
+						hash := &+[ri0[i]*1009^(i-1) : i in [1..#ri0]];
+						if not hash in list_hashes then
+						    printf "ker([a0,a1,a2,a3,a4,a5,a6,a7]=%o,%o,%o,%o,%o,%o,%o,%o,[b0]=%3o) = %o v = %o eq = %o*rx\n", a0,a1,a2,a3,a4,a5,a6,a7, b0, Kli[i0], Rl[i0], 0;
+						    Append(~list_hashes, hash);
+						    Append(~list_equations, <Rl[i0], 0, [a0,a1,a2,a3,a4,a5,a6,a7], [b0]>);
+						end if;
+					    end if;
+					    i0 := i0+1;
+					end for;// eqs
+				    end for;// b0
+				end for;// a7
+			    end for;// a6
+			end for;// a5
+		    end for;// a4
+		end for;// a3
+	    end for;// a2
+	end for;// a1
+    end for;// a0
+
+
+end procedure;
+procedure test_smith15_g1_kss18()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss18_polynomials();
+    //yx := -yx;// so as to match the eigenvalue lambx
+    // otherwise, it matches the eigenvalue -lambx-1
+    b0 := (tx+yx)/2;
+    c0 := yx;
+    b1 := [b0-1, c0];
+    deg_phi := 1; // characteristic polynomial is X^2+X+1 = X^2 -tr_phi*X + deg_phi
+    tr_phi := -1;
+    b2 := [c0*deg_phi + (b0-1)*tr_phi, 1-b0];
+    assert b2[1] eq (1 - (tx-yx)/2);
+    M := Matrix(QQx, 2, 2, [b1, b2]);
+    detM := Determinant(M);
+    printf "det(M) = det(b1, b2) = %o = (%o) * cx * rx\n", detM, detM div (rx*cx);
+    // find lambx, not mod r, not mod c
+    // p+1-t = (t^2 + 3*y^2 + 4 - 4*t)/4 = ((t-2)^2 + 3*y^2)/4
+    gg, inv_yx, _ := Xgcd(yx, cx*rx);
+    sqrt_3 := ((tx-2)*inv_yx) mod (rx*cx);
+    lambx := (-1 + sqrt_3)/2;
+    lambx := (19*x^7 + 39*x^6 + 703*x^4 + 1786*x^3 + 6517*x + 19551)/343;
+    assert ((lambx^2 + lambx + 1) mod (rx*cx)) eq 0;
+    assert (lambx mod rx) eq lambrx;
+    assert (lambx mod cx) eq lambcx;
+
+    lambx_ := -lambx-1;
+    assert ((lambx_^2 + lambx_ + 1) mod (rx*cx)) eq 0;
+
+    col_lambix := Matrix(QQx, 2, 1, [1, lambx_]);// lambx_ with yx, lambx with -yx
+    assert ((M*col_lambix)[1][1] mod (rx*cx)) eq 0;
+    assert ((M*col_lambix)[2][1] mod (rx*cx)) eq 0;
+
+    lambrx_ := -lambrx-1;
+    col_lambrix := Matrix(QQx, 2, 1, [1, lambrx_]);
+
+    // the aim is to simplify cx -> let's get a left kernel modulo cx
+    K<a> := NumberField(cx);
+    Ma := Matrix(K, 2, 2, [Evaluate(b1[1], a), Evaluate(b1[2], a), Evaluate(b2[1], a), Evaluate(b2[2], a)]);
+    ker_ca := KernelMatrix(Ma);
+    // [1,  a + 3] with -yx and lambrx,
+    // [1,  -a -2] with yx and -lambrx-1
+    a1 := ker_ca[1][1];
+    a2 := ker_ca[1][2];
+    ker_cx := Matrix(QQx, 2, 2, [[QQx ! Eltseq(a1), QQx ! Eltseq(a2)],\
+				 [QQx ! Eltseq(a1/a2), QQx ! 1]]);
+    N := ker_cx * M;
+    assert (N[1][1] mod cx) eq 0;
+    assert (N[1][2] mod cx) eq 0;
+    assert (N[2][1] mod cx) eq 0;
+    assert (N[2][2] mod cx) eq 0;
+    R := ChangeRing((343/cx) * N, QQx);
+    // with -yx and lambrx:
+    //[-4*x^3 - 71    x^3 + 23]
+    //[   x^3 + 23  5*x^3 + 94]
+    // with yx and -lambrx-1:
+    //[ -x^3 - 23 4*x^3 + 71]
+    //[4*x^3 + 71 5*x^3 + 94]
+    if col_lambrix[2][1] eq lambrx then
+	K0 := Matrix(QQx, 2, 2, [[1, 4], [ 5,-1]]);
+    else
+	K0 := Matrix(QQx, 2, 2, [[4, 1], [-5, 4]]);
+    end if;
+    S := (1/21)*K0 * R;
+    printf "with K0 on finally gets S = [[1, lambda+1], [-lambda, 1]] where K0 = \n%o\n", K0;
+
+
+    // then it is about simplifying by 343
+    detS := Determinant(S);
+    printf "det(S) = det([1, lambrx+1], [-lambrx, 1]) = %o = (%o) * rx\n", detS, detS div rx;
+
+    z := 7*x; // 21*x+14
+    qz := Evaluate(qx, z);
+    rz := Evaluate(rx, z);
+    lambrz := Evaluate(lambrx, z);
+    R0 := Matrix(QQx, 2, 2, [[1, lambrz+1], [-lambrz, 1]]);
+    printf "R0 =\n%o\n", R0;
+    assert (Determinant(R0) mod rz) eq 0;
+    printf "det(R0) = (%o) * rz\n", Determinant(R0) div rz; // this is something*rx;
+    col_liz := Matrix(2, 1, [1, lambrz]);
+    eqs := R0 * col_liz;
+    i0 := 0;
+    for li in Eltseq(eqs) do
+	if li eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (li mod rz) eq 0;
+	    printf "eq%o = %o*rz = %o * rz\n", i0, li div rz, Factorization(ZZ ! (li div rz));
+	end if;
+        i0 := i0+1;
+    end for;
+
+    l := 343;
+    I := Integers(l);
+
+    It<t> := PolynomialRing(I);
+    R0_mod_l := ChangeRing(ChangeRing(R0, It), I);
+    Kl_mod_l := KernelMatrix(R0_mod_l);
+    printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+    // KernelMatrix mod 343 =
+    // [18  1]
+    R1 := (1/343) * Kl * R0;
+    printf "reduced matrix is \n%o\n", R1;
+
+end procedure;
+
+procedure test_yu_dai_th1_kss18(u)
+    /* in ePrint 2022/348 there is table 2
+     * claiming that the short vector for KSS18 is
+     * [2*x/7, 1, 0, x/7, 0, 0] where x is the curve seed (x = 14 mod 21)
+     * check Theorem 1
+     */
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss18_polynomials();
+    phi_k := EulerPhi(k);
+    col_qix := Matrix(QQx, phi_k, 1, [(qx^i mod rx) : i in [0..phi_k-1]]);
+
+    v0 := Matrix(QQx, 1, phi_k, [1, 0, x, 2, 0, 0]); // formula from Vercauteren Optimal Pairings
+    eqv0 := (v0 * col_qix)[1][1];
+    if eqv0 eq 0 then
+	printf "eq_v(Vercauteren) = 0\n";
+    else
+	assert (eqv0 mod rx) eq 0;
+	printf "eq_v(Vercauteren) = %o = %o*rx = %o*rx\n", eqv0, eqv0 div rx, Factorization(ZZ ! (eqv0 div rx));
+    end if;
+
+    v := Matrix(QQx, 1, phi_k, [2*x/7, 1, 0, x/7, 0, 0]);
+    eqv := (v * col_qix)[1][1];
+    if eqv eq 0 then
+	printf "eq_v(YuDai) = 0\n";
+    else
+	assert (eqv mod rx) eq 0;
+	printf "eq_v(YuDai) = %o = %o*rx = %o*rx\n", eqv, eqv div rx, Factorization(ZZ ! (eqv div rx));
+    end if;
+    // what are the good and bad primes w.r.t. g2cx ?
+    good_l, bad_l := good_bad_primes_g2cx(Evaluate(g2cx, 21*x+14): B:=200);
+    // the short vectors given by a basic LLL are
+    optimal_ate_pairing(k, qx mod rx, rx);
+    R := Matrix(QQx, 6, 6, [\
+			    [-2,  0,  0,  3,  0,  x],\
+			    [ 0,  0,  1,  0,  x,  2],\
+			    [ 0,  1,  0,  x,  2,  0],\
+			    [ 1,  0,  x,  2,  0,  0],\
+			    [ 0,  x,  3,  0,  0, -1],\
+			    [ x,  3,  0,  0, -1,  0]]);
+    eqs := R * col_qix;
+    detR := Determinant(R); // this is 343*rx;
+    printf "det(R) = %o = %o * rx\n", detR, detR div rx, Factorization(ZZ ! (detR div rx));
+    i := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i;
+	else
+	    assert (qi mod rx) eq 0;
+	    gi := ZZ ! (qi div rx);
+	    printf "eq%o = %o = %o*rx = %o * rx\n", i, qi, gi, Factorization(gi);
+	end if;
+        i := i+1;
+    end for;
+    // find a linear combination of the rows to get exactly rx
+    z := 21*x+14;
+    qz := Evaluate(qx, z);
+    rz := Evaluate(rx, z);
+    optimal_ate_pairing(k, qz mod rz, rz);
+    R0 := Matrix(QQx, 6, 6, [\
+			    [-2,  0,  0,  3,  0,  z],\
+			    [ 0,  0,  1,  0,  z,  2],\
+			    [ 0,  1,  0,  z,  2,  0],\
+			    [ 1,  0,  z,  2,  0,  0],\
+			    [ 0,  z,  3,  0,  0, -1],\
+			    [ z,  3,  0,  0, -1,  0]]);
+    printf "R0 =\n%o\n", R0;
+    assert (Determinant(R0) mod rz) eq 0;
+    printf "det(R0) = (%o) * rz\n", Determinant(R0) div rz; // this is something*rx;
+    col_qi := Matrix(QQx, phi_k, 1, [(qz^i mod rz) : i in [0..phi_k-1]]); // column vector of q^i
+    eqs := R0*col_qi;
+    i := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i;
+	else
+	    assert (qi mod rz) eq 0;
+	    printf "eq%o = %o*rz = %o * rz\n", i, qi div rz, Factorization(ZZ ! (qi div rz));
+	end if;
+        i := i+1;
+    end for;
+    l := 7;
+    Fl := GF(l);
+    Flt<t> := PolynomialRing(Fl);
+    R0_mod_l := ChangeRing(ChangeRing(R0, Flt), Fl);
+    Kl_mod_l := KernelMatrix(R0_mod_l);
+    ker_Kl := Kernel(R0_mod_l);
+    printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    printf "Kernel mod %o = \n%o\n", l, ker_Kl;
+    Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+    //Vector space of degree 6, dimension 3 over GF(7)
+    //Echelonized basis:
+    //(1 0 0 2 0 0)
+    //(0 1 0 0 2 0)
+    //(0 0 1 0 0 2)
+
+    //KernelMatrix mod 7 =
+    //[3 0 0 6 0 0]
+    //[0 3 0 0 6 0]
+    //[0 0 3 0 0 6]
+    // (7*a+1) * R[1] + (7*b+2)*R[4]
+    min_g := 2;
+    A := 20;
+    for a := -A to A do
+	for b := -A to A do
+	    K7 := Matrix(QQx, [[7*a+1, 0, 0, 7*b+2, 0, 0],
+			       [7*a+2, 0, 0, 7*b-3, 0, 0],
+			       [7*a+3, 0, 0, 7*b-1, 0, 0]]);
+	    R7 := (1/7) * K7 * R0;
+	    eqs7 := R7 * col_qi;
+	    i := 1;
+	    for qi in Eltseq(eqs7) do
+		if qi ne 0 then
+		    assert (qi mod rz) eq 0;
+		    g := ZZ ! (qi div rz);
+		    if Gcd(g, &* bad_l) eq 1 then
+			if Abs(g) le min_g then
+			    printf "ker(a=%o,b=%o) = %o v = %o eq = %o*rz = %o * rz\n", a, b, K7[i], R7[i], qi div rz, Factorization(g);
+			end if;
+		    end if;
+		end if;
+		i := i+1;
+	    end for;
+	end for;
+    end for;
+    K7 := Matrix(QQx, [[2, 0, 0,-3, 0, 0],\
+		       [0, 2, 0, 0,-3, 0],\
+		       [0, 0, 2, 0, 0,-3],\
+		       [31,0, 0,-50,0, 0],\
+		       [0,31, 0, 0,-50,0],\
+		       [0, 0,31, 0, 0,-50]]);
+    R7 := (1/7) * K7 * R0;
+    assert(Determinant(R7) mod rz) eq 0;
+    det := Determinant(R7) div rz;
+    printf "R7 = \n%o\ndet(R7) = %o * rz\n", R7, det;
+    eqs7 := R7 * col_qi;
+    // 21*x0 + 14 = x <=> x0 = (x-14)/21
+    x0 := (x-14)/21;
+    v :=  Matrix(QQx, 1, phi_k, [-1, 0, -9*x0 - 6, 0, 0, 6*x0 + 4]);
+    V1 := [-1, 0, -9*x0 - 6, 0, 0, 6*x0 + 4];
+    V2 := [-16, 0, -150*x - 100, -1, 0, 93*x + 62];
+
+    QQxX<X> := PolynomialRing(QQx);
+    gX := X^2 - tx*X + qx;
+
+    v1X := QQxX ! V1;
+    res1 := QQx ! Resultant(v1X mod gX, gX);
+    res1_ := Resultant(res1, g2cx);
+    printf "resultant = %o\n", res1_; // this is not 1, this is very strange
+    //printf "Numerator = %o\n", Factorization(Numerator(res1_));
+
+    v2X := QQxX ! V2;
+    res2 := QQx ! Resultant(v2X mod gX, gX);
+    res2_ := Resultant(res2, g2cx);
+    printf "resultant = %o\n", res2_; // this is not 1, this is very strange
+    //printf "Numerator = %o\n", Factorization(Numerator(res2_));
+
+    //resultant = 22928808952727304488729197921165638177248425432767400457491655821607777467989920235076999/8454556901739520184440759716191315644474778693425590141850177521232137678333486503357140840268401880428856975661
+    //Numerator = [ <487, 1>, <93187, 1>, <1277459803, 1>, <395503162518184842831514332444268376819968744485055544063038674197541457, 1> ]
+    //resultant = 10596249217286829853540658753313089690545166837103380499359745381094399887883739247511953068974747036251450291779574879478607615864786656651/161983253770892343628952074754289101610209167878404173195738281712215752017167
+
+end procedure;
+
+
+procedure test_yu_dai_th1_kss16(u)
+    /* in ePrint 2022/348 there is Section 5.5.2
+     * claiming that the short vector for KSS16 is v below
+     *  where x is the curve seed (x = +/-25 mod 70)
+     * check Theorem 1
+     */
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss16_polynomials();
+    // what are the small factors of g2cx?
+    lcm_g2 := Lcm([Denominator(ci) : ci in Eltseq(g2cx)]);
+    for res_mod_70 in [45, 25] do
+	g2cx_70 := Evaluate(g2cx, 70*x + res_mod_70);
+	gcd_g2 := Gcd([ZZ ! ci : ci in Eltseq(g2cx_70)]);
+	good_l, bad_l := good_bad_primes_g2cx(g2cx_70: B:=200);
+    end for;
+    res_mod_70 := 25;
+
+    phi_k := EulerPhi(k);
+    v := Matrix(QQx, 1, phi_k, [-11/70*x + 1/14, 9/70*x + 3/14, -3/70*x - 1/14, -3/70*x - 1/14, 13/70*x - 5/14, -1/10*x + 1/2, -1/70*x - 5/14, -11/70*x + 1/14]);
+    col_qix := Matrix(QQx, phi_k, 1, [(qx^i mod rx) : i in [0..phi_k-1]]); // column vector of q^i
+    eqv := (v * col_qix)[1][1];
+    if eqv eq 0 then
+	printf "eq_v(YuDai) = 0\n";
+    else
+	assert (eqv mod rx) eq 0;
+	printf "eq_v(YuDai) = %o = %o*rx = %o*rx\n", eqv, eqv div rx, Factorization(ZZ ! (eqv div rx));
+    end if;
+    
+    // the short vectors given by a basic LLL are
+    optimal_ate_pairing(k, qx mod rx, rx);
+    //z := 5*x; l := 5;
+    //z := 2*x+1; l := 2;
+    //z := 10*x + 5; l := 10;
+    //z := 7*x+3; l := 7;
+    //z := 7*x+4; l := 7;
+    z := 70*x+res_mod_70;
+    qz := Evaluate(qx, z);
+    rz := Evaluate(rx, z);
+    optimal_ate_pairing(k, qz mod rz, rz);
+    R0 := Matrix(QQx, 8, 8, [\
+			    [-1,  0,  0,  0,  2,  0,  0,  x],\
+			    [ 0,  0,  0,  2,  0,  0,  x,  1],\
+			    [ 0,  0,  2,  0,  0,  x,  1,  0],\
+			    [ 0,  2,  0,  0,  x,  1,  0,  0],\
+			    [ 2,  0,  0,  x,  1,  0,  0,  0],\
+			    [ 0,  0,  x,  1,  0,  0,  0, -2],\
+			    [ 0,  x,  1,  0,  0,  0, -2,  0],\
+			    [ x,  1,  0,  0,  0, -2,  0,  0]]);
+    R := Matrix(QQx, 8, 8, [\
+			    [-1,  0,  0,  0,  2,  0,  0,  z],\
+			    [ 0,  0,  0,  2,  0,  0,  z,  1],\
+			    [ 0,  0,  2,  0,  0,  z,  1,  0],\
+			    [ 0,  2,  0,  0,  z,  1,  0,  0],\
+			    [ 2,  0,  0,  z,  1,  0,  0,  0],\
+			    [ 0,  0,  z,  1,  0,  0,  0, -2],\
+			    [ 0,  z,  1,  0,  0,  0, -2,  0],\
+			    [ z,  1,  0,  0,  0, -2,  0,  0]]);
+    printf "R =\n%o\n", R;
+    assert (Determinant(R) mod rz) eq 0;
+    printf "det(R) = (%o) * rz\n", Determinant(R) div rz; // this is something*rx;
+    col_qi := Matrix(QQx, phi_k, 1, [(qz^i mod rz) : i in [0..phi_k-1]]); // column vector of q^i
+    eqs := R*col_qi;
+    i := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i;
+	else
+	    assert (qi mod rz) eq 0;
+	    printf "eq%o = %o = %o*rz = %o * rz\n", i, qi, qi div rz, Factorization(ZZ ! (qi div rz));
+	end if;
+        i := i+1;
+    end for;
+    //eq0 = -11/875*x^8 - 528/875*x^4 - 55/7 = -770*rx
+    //eq1 = 0
+    //eq2 = 0
+    //eq3 = 0
+    //eq4 = -2/875*x^8 - 96/875*x^4 - 10/7 = -140*rx
+    //eq5 = 0
+    //eq6 = 0
+    //eq7 = 0
+    // the seed x should be 25 or 45 mod 70, that is
+    // . x = 1 mod 2
+    // . x = 0 mod 5
+    // . x = 3 or 4 mod 7 (resp. 45, 25 mod 70)
+    // investigate the kernels mod each of these primes
+    for lr in [[5, 0], [2, 1], [7, 3], [7, 4]] do
+	l0, r0 := Explode(lr);
+	printf "l=%o x = %o mod %o\n", l0, r0, l0;
+	Fl := FiniteField(l0);
+	//Fli<i0,i1,i2,i3,i4,i5,i6,i7> := PolynomialRing(Fl, 8);
+	//A := Vector(Fli, [i0,i1,i2,i3,i4,i5,i6,i7]);
+	Ra := Matrix(Fl, 8, 8, [\
+			    [-1,  0,  0,  0,  2,  0,  0,  r0],\
+			    [ 0,  0,  0,  2,  0,  0,  r0,  1],\
+			    [ 0,  0,  2,  0,  0,  r0,  1,  0],\
+			    [ 0,  2,  0,  0,  r0,  1,  0,  0],\
+			    [ 2,  0,  0,  r0,  1,  0,  0,  0],\
+			    [ 0,  0,  r0,  1,  0,  0,  0, -2],\
+			    [ 0,  r0,  1,  0,  0,  0, -2,  0],\
+			    [ r0,  1,  0,  0,  0, -2,  0,  0]]);
+	//eqa := A * Ra;
+	//i:=0;
+	//for qa in Eltseq(eqa) do
+	    //printf "qa%o = %o\n", i, qa;
+	    //i := i+1;
+	//end for;
+	printf "KernelMatrix(Ra) =\n%o\n", KernelMatrix(Ra);
+    end for;
+    K5_seq := [];// a sequence of matrices 4 rows 8 coloumns. Next step will be to find a left kernel mod 2 of each of these matrices
+    max_ci := 10;
+    mem_ab := [];
+    A := 20;
+    for a := -A to A do
+	for b := -A to A do
+	    // [5]
+	    Kab := Matrix(QQx, 2, 8, [[5*a+1, 0, 0, 0, 5*b+3, 0, 0, 0],\
+				      [5*a+2, 0, 0, 0, 5*b+1, 0, 0, 0]]);
+	    Rab := (1/5) * Kab * R0;
+	    //[-a + 2*b + 1  0  0  b*x + 3/5*x  2*a + b + 1   0  0  a*x + 1/5*x]
+	    //[    -a + 2*b  0  0  b*x + 1/5*x  2*a + b + 1   0  0  a*x + 2/5*x]
+	    //Rb := Matrix(QQx, 1, 8, [-a+2*b+1, 0, 0, (5*b+3)*x/5, 2*a+b+1, 0, 0, (5*a+1)*x/5]);
+	    //Ra := Matrix(QQx, 1, 8, [-a+2*b,   0, 0, (5*b+1)*x/5, 2*a+b+1, 0, 0, (5*a+2)*x/5]);
+	    ii := 1;
+	    for qi in Eltseq(Rab*col_qix) do
+		if qi eq 0 then
+		    printf "eq(a=%o b=%o) = 0\n", a, b;
+		else
+		    assert (qi mod rx) eq 0;
+		    g := ZZ ! (qi div rx);
+		    if (Valuation(g, 7) le 1) and (Valuation(g, 2) le 1) and (Abs(g div (Gcd(g, 14))) le max_ci) and (Gcd(g div Gcd(g, 14), &*bad_l) eq 1) then
+			printf "eq(a=%o b=%o i=%o) = %o = %o*rx = %o * rx\n", a, b, ii, qi, g, Factorization(g);
+			ci := Abs(g div (Gcd(g, 14)));
+			Append(~mem_ab, [ci, ii, a, b]);
+			K5_seq_ab := [];
+			if ii eq 1 then
+			    Append(~K5_seq_ab, [5*a+1, 0, 0, 0, 5*b+3, 0, 0, 0]);
+			    Append(~K5_seq_ab, [0, 5*a+1, 0, 0, 0, 5*b+3, 0, 0]);
+			    Append(~K5_seq_ab, [0, 0, 5*a+1, 0, 0, 0, 5*b+3, 0]);
+			    Append(~K5_seq_ab, [0, 0, 0, 5*a+1, 0, 0, 0, 5*b+3]);
+			    Append(~K5_seq, Matrix(QQx, 4, phi_k, K5_seq_ab));
+			else
+			    Append(~K5_seq_ab, [5*a+2, 0, 0, 0, 5*b+1, 0, 0, 0]);
+			    Append(~K5_seq_ab, [0, 5*a+2, 0, 0, 0, 5*b+1, 0, 0]);
+			    Append(~K5_seq_ab, [0, 0, 5*a+2, 0, 0, 0, 5*b+1, 0]);
+			    Append(~K5_seq_ab, [0, 0, 0, 5*a+2, 0, 0, 0, 5*b+1]);
+			    Append(~K5_seq, Matrix(QQx, 4, phi_k, K5_seq_ab));
+			end if;
+		    end if;
+		end if;
+		ii +:= 1;
+	    end for;
+	end for;
+    end for;
+    /*
+    */
+    // tentative to force a solution to simplify by 2 on a, b: a odd, b even (a = 2*a0+1, b= 2*b0) but it fails.
+    printf "\n";
+    max_ci := 20;
+    for a0 := -20 to 20 do
+	for b0 := -20 to 20 do
+	    a := 2*a0 + 1;
+	    b := 2*b0;
+	    Ra := Matrix(QQx, 1, 8, [-a+2*b,   0, 0, (5*b+1)*x/5, 2*a+b+1, 0, 0, (5*a+2)*x/5]);
+	    Rb := Matrix(QQx, 1, 8, [-a+2*b+1, 0, 0, (5*b+3)*x/5, 2*a+b+1, 0, 0, (5*a+1)*x/5]);
+	    //Ra := Matrix(QQx, 1, 8, [-a, 0, 0, x/5, 2*a+1, 0, 0, (5*a+2)*x/5]);
+	    //Rb := Matrix(QQx, 1, 8, [2*b+1, 0, 0, (5*b+3)*x/5, b+1, 0, 0, x/5]);
+	    Rab1 := (1/2) * (Ra + Rb);//Matrix(QQx, 1, 8, [-a0+2*b0, 0, 0, (5*b0+2)*x/5, 2*a0+b0+2, 0, 0, (5*a0+4)*x/5]);
+	    Rab2 := (1/2) * (Ra - Rb);//Matrix(QQx, 1, 8, [-a0-2*b0-1, 0, 0, (-5*b0-1)*x/5, 2*a0-b0+1, 0, 0, (5*a0+3)*x/5]);
+            qi := (Rab1*col_qix)[1][1];
+	    if qi eq 0 then
+		printf "eq(a=2*%o+1, b=2*%o) = 0\n", a0, b0;
+	    else
+		assert (qi mod rx) eq 0;
+		g := ZZ ! (qi div rx);
+		if Valuation(g, 7) le 1 and Valuation(g, 5) lt 1 and Valuation(g, 2) lt 1 and (Abs(g div (Gcd(g, 7))) le max_ci) then
+		    printf "eq(a=2*%o+1, b=2*%o) = %o = %o*rx = %o * rx\n", a0, b0, qi, g, Factorization(g);
+		end if;
+	    end if;
+	end for;
+    end for;
+
+    ParallelSort(~mem_ab, ~K5_seq);
+    counter := 0;
+    // now it consists in finding a left kernel of R mod 5, 7, 2.
+    // left-kernel mod 5:
+    best_R2 := ZeroMatrix(QQx, 0, phi_k);
+    min_ci := 20;
+    max_gg := 20;
+    for i1 := 1 to # K5_seq do
+	K5 := Matrix(QQx, K5_seq[i1]);	
+	R5 := (1/5) * K5 * R;
+	eqs := R5*col_qi;
+	j := 0;
+	for qi in Eltseq(eqs) do
+	    assert (qi eq 0) or ((qi mod rz) eq 0);
+            j := j+1;
+	end for;
+	// now find a left kernel mod 2 of R5
+	// cast R5 mod 2
+	F2 := GF(2);
+	F2t<t> := PolynomialRing(F2);
+	R5_mod_2 := ZeroMatrix(F2, NumberOfRows(R5), NumberOfColumns(R5));
+	for i := 1 to NumberOfRows(R5) do
+	    for j := 1 to NumberOfColumns(R5) do
+		R5_mod_2[i][j] := F2 ! (F2t ! R5[i][j]);
+	    end for;
+	end for;
+	K2_mod_2 := KernelMatrix(R5_mod_2);
+	if NumberOfRows(K2_mod_2) gt 0 then
+	    K2 := ZeroMatrix(QQx, NumberOfRows(K2_mod_2), NumberOfColumns(K2_mod_2));
+	    for i := 1 to NumberOfRows(K2_mod_2) do
+		for j := 1 to NumberOfColumns(K2_mod_2) do
+		    K2[i][j] := QQx ! (ZZ ! K2_mod_2[i][j]);
+		end for;
+	    end for;
+	    // actually the trick here would be to look for linear combinations of rows with coeffs in [-1,0,1]
+	    // so as to better simplify what is the result in terms of something * rz but it seems it does not work
+	    first := true;
+	    A := 2;
+	    //for K2_seq in [[1,1,1,1], [1,-1,1,1], [1,1,-1,1], [1,1,1,-1], [1,1,-1,-1], [1,-1,1,-1], [1,-1,-1,1]] do
+	    //printf "bad_l = %o, &*bad_l = %o\n", bad_l, &* bad_l;
+	    for c1 := -A to A do
+		for c2 := -A to A do
+		    for c3 := -A to A do
+			for c4 := 0 to A do
+			    K2_seq := [2*c1 + 1, 2*c2+1, 2*c3+1, 2*c4+1];
+			    K2 := Matrix (QQx, 1, 4, K2_seq);
+			    R2 := (1/2) * K2 * R5;
+			    eqs := R2*col_qi;
+			    j := 0;
+			    for qi in Eltseq(eqs) do
+				if qi ne 0 then
+				    assert (qi mod rz) eq 0;
+				    g := ZZ ! (qi div rz);
+				    if Gcd(g, &* bad_l) eq 1 and Abs(g) le max_gg then
+					counter +:= 1;
+					if first then
+					    printf "K5_seq_%o := \n%o\n", i1, K5;
+					    printf "with the values %o\n", mem_ab[i1];
+					    item := mem_ab[i1];
+					    a := item[3];
+					    b := item[4];
+					    if item[2] eq 1 then
+						Rab := Matrix(QQx, 1, 8, [-a+2*b+1, 0, 0, (5*b+3)*x/5, 2*a+b+1, 0, 0, (5*a+1)*x/5]);
+						//Ra := Matrix(QQx, 1, 8, [-a, 0, 0, x/5, 2*a+1, 0, 0, (5*a+2)*x/5]);
+						qj := (Rab*col_qix)[1][1];
+						gj := ZZ ! (qj div rx);
+						printf "eq(a=%o b=%o i=%o) = %o = %o*rx = %o * rx\n", a, b, item[2], qj, gj, Factorization(gj);
+					    else
+						Rab := Matrix(QQx, 1, 8, [-a+2*b,   0, 0, (5*b+1)*x/5, 2*a+b+1, 0, 0, (5*a+2)*x/5]);
+						//Rb := Matrix(QQx, 1, 8, [2*b+1, 0, 0, (5*b+3)*x/5, b+1, 0, 0, x/5]);
+						qj := (Rab*col_qix)[1][1];
+						gj := ZZ ! (qj div rx);
+						printf "eq(a=%o b=%o i=%o) = %o = %o*rx = %o * rx\n", a, b, item[2], qj, gj, Factorization(gj);
+					    end if;
+					    printf "R5 mod 2 = \n%o\n", R5_mod_2;
+					    first := false;
+					end if;
+					printf "KernelMatrix = K2 = \n%o\n", K2;
+					printf "R2 = %o\n", R2;
+					printf "eq%o = %o*rz = %o * rz\n", j, g, Factorization(g);
+				    end if;
+				    if Abs(g) lt min_ci then
+					best_R2 := VerticalJoin(best_R2, R2);
+				    end if;
+				end if;
+				j := j+1;
+			    end for;
+			end for;
+		    end for;
+		end for;
+	    end for;
+	end if;
+    end for;
+    printf "total %o relations found\n", counter;
+    R2 := best_R2;
+    //printf "best R2 are \n%o\n", R2;
+    // finally, simplify by 7
+    F7 := GF(7);
+    F7t<t> := PolynomialRing(F7);
+    R2_mod_7 := ZeroMatrix(F7, NumberOfRows(R2), NumberOfColumns(R2));
+    for i := 1 to NumberOfRows(R2) do
+	for j := 1 to NumberOfColumns(R2) do
+	    R2_mod_7[i][j] := F7 ! (F7t ! R2[i][j]);
+	end for;
+    end for;
+    K7_mod_7 := KernelMatrix(R2_mod_7);
+    K7 := ZeroMatrix(QQx, NumberOfRows(K7_mod_7), NumberOfColumns(K7_mod_7));
+    for i := 1 to NumberOfRows(K7_mod_7) do
+	for j := 1 to NumberOfColumns(K7_mod_7) do
+	    K7[i][j] := QQx ! (ZZ ! K7_mod_7[i][j]);
+	end for;
+    end for;
+
+    R7 := (1/7) * K7 * R2;
+    eqs := R7*col_qi;
+    max_gg := 1;
+    i := 1;
+    for qi in Eltseq(eqs) do
+	if qi ne 0 then
+	    assert (qi mod rz) eq 0;
+	    gg := ZZ ! (qi div rz);
+	    if Gcd(gg, &* bad_l) eq 1 and Abs(gg) le max_gg then
+		printf "R7[%o] = %o eq%o = %o*rz = %o * rz\n", i, R7[i], i, gg, Factorization(gg);
+	    end if;
+	end if;
+        i := i+1;
+    end for;
+
+    vx := [-783*x - 299, -1153*x - 419, -2331*x - 843, -621*x - 243, 139*x + 44, 209*x + 99, 423*x + 187, 113*x + 113];
+    x0 := (x-res_mod_70)/70;
+    v0 := [-783*x0 - 299, -1153*x0 - 419, -2331*x0 - 843, -621*x0 - 243, 139*x0 + 44, 209*x0 + 99, 423*x0 + 187, 113*x0 + 113];
+    printf "v(u) = %o\n", Matrix(QQx, 1, phi_k, vx);
+    v :=  Matrix(QQx, 1, phi_k, v0);
+    printf "v(x) = %o\n", v;
+
+    QQxX<X> := PolynomialRing(QQx);
+    gX := X^2 - tx*X + qx;
+    vX := QQxX ! v0;
+    res := QQx ! Resultant(vX mod gX, gX);
+    res2 := Resultant(res, g2cx);
+    printf "resultant = %o\n", res2; // this is not 1, and this is very strange.
+    printf "Numerator = %o\n", (Numerator(res2));
+end procedure;
+
+procedure test_smith15_sg18a()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18a_polynomials();
+    // for G2 subgroup membership testing, reduce the matrix w.r.t. l=3
+    phi_k := EulerPhi(k);
+    // formula: x + x*qx^3 + qx^2 = 0 mod rx
+    v1 := Matrix(QQx, 1, phi_k, [x, 0, 1, x, 0, 0]);
+    v2 := Matrix(QQx, 1, phi_k, [x, x, x+1, x+1, x+1, x]);
+    v3 := Matrix(QQx, 1, phi_k, [0, x, 0, 1, x, 0]);
+    v4 := Matrix(QQx, 1, phi_k, [0, 0, x, 0, 1, x]);
+    col_qix := Matrix(QQx, phi_k, 1, [(qx^i mod rx) : i in [0..phi_k-1]]); // column vector of q^i
+    i := 1;
+    for v in [v1, v2, v3, v4] do
+	eqv := (v * col_qix)[1][1];
+	if eqv eq 0 then
+	    printf "eq_v%o = 0\n", i;
+	else
+	    assert (eqv mod rx) eq 0;
+	    printf "eq_v%o = %o = %o*rx = %o*rx\n", i, eqv, eqv div rx, Factorization(ZZ ! (eqv div rx));
+	end if;
+	i := i+1;
+    end for;
+
+    // the short vectors given by a basic LLL are
+    R0 := optimal_ate_pairing_fc(k, qx mod rx, rx);
+    R0 := 3*R0;
+    R := Matrix(QQx, 6, 6, [\
+			     [  0,  -1,   0,   0,   2, 3*x],\
+			     [ -1,   0,   0,   2, 3*x,   0],\
+			     [  0,   0,   1, 3*x,   0,   1],\
+			     [  0,   1, 3*x,   0,   1,   0],\
+			     [  1, 3*x,   0,   1,   0,   0],\
+			     [3*x,   0,   2,   0,   0,  -1]]);
+    printf "R =\n%o\n", R;
+    assert (Determinant(R) mod rx) eq 0;
+    printf "det(R) = (%o) * rx\n", Determinant(R) div rx; // this is -27*rx;
+    eqs := R*col_qix;
+    i := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i;
+	else
+	    assert (qi mod rx) eq 0;
+	    printf "eq%o = %o = %o*rx = %o * rx\n", i, qi, qi div rx, Factorization(ZZ ! (qi div rx));
+	end if;
+        i := i+1;
+    end for;
+    //eq0 = 0
+    //eq1 = -81*x^6 - 27*x^3 - 3 = -3*rx = [ <3, 1> ] * rx
+    //eq2 = 0
+    //eq3 = 0
+    //eq4 = 0
+    //eq5 = 0
+    l := 3;
+    Fl := GF(l);
+    Il := Fl;
+    Flt<t> := PolynomialRing(Fl);
+    R0_mod_l := ChangeRing(ChangeRing(R0, Flt), Fl);
+    Kl_mod_l := KernelMatrix(R0_mod_l);
+    ker_Kl := Kernel(R0_mod_l);
+    printf "KernelMatrix mod %o = \n%o\n", l, Kl_mod_l;
+    printf "Kernel mod %o = \n%o\n", l, ker_Kl;
+    Kl := ChangeRing(ChangeRing(Kl_mod_l, ZZ), QQx);
+    //Vector space of degree 6, dimension 3 over GF(3)
+    //Echelonized basis:
+    //(1 0 0 1 0 0)
+    //(0 1 0 0 1 0)
+    //(0 0 1 0 0 1)
+    //KernelMatrix mod 3 =
+    //[2 0 0 2 0 0]
+    //[0 2 0 0 2 0]
+    //[0 0 2 0 0 2]
+    R1 := (1/(2*l))*(Kl * R0);
+    printf "R1 = %o\n", R1;
+    eqs := R1 * col_qix;
+    i0 := 0;
+    for qi in Eltseq(eqs) do
+	if qi eq 0 then
+	    printf "eq%o = 0\n", i0;
+	else
+	    assert (qi mod rx) eq 0;
+	    gi := ZZ ! (qi div rx);
+	    printf "eq%o = %o = %o*rx0 = %o * rx0\n", i0, qi, gi, Factorization(gi);
+	end if;
+        i0 := i0+1;
+    end for;
+    //R1 =
+    //[0 0 x 0 1 x]
+    //[0 x 0 1 x 0]
+    //[x 0 1 x 0 0]
+    gcd_g2 := Gcd([ZZ ! ci : ci in Eltseq(g2cx)]);
+    good_l, bad_l := good_bad_primes_g2cx(g2cx: B:=200);
+    prod_bad_l := gcd_g2 * &*bad_l;
+    // find the best linear combination of the solutions made of the kernel
+    min_g := 1;
+    max_i := 1;
+    // make a list of the coefficients and check each time if it is already in the list or not
+    list_equations := [];
+    list_hashes := [];
+    mid_l := (l+1) div 2;
+    A_ := -1;
+    A := 1;
+    for a0 := A_ to A do
+	for a1 := A_ to A do
+	    for a2 := A_ to A do
+		for a3 := A_ to A do
+		    for a4 := A_ to A do
+			for a5 := A_ to A do
+			    for b0 := -mid_l+1 to mid_l do
+				for b1 := -mid_l+1 to mid_l do
+				    for b2 := -mid_l+1 to mid_l do
+					if Gcd([b0, b1, b2]) ne 1 then
+					    continue;
+					end if;
+					// make a linear combination of the eigenvectors modulo l, then lift and add any multiple of l
+					Kli := l * Matrix(QQx, 1, 6, [a0,a1,a2,a3,a4,a5]) + ChangeRing(ChangeRing(b0 * Matrix(Il, 1, 6, Eltseq(Kl_mod_l[1])) + b1 * Matrix(Il, 1, 6, Eltseq(Kl_mod_l[2])) + b2 * Matrix(Il, 1, 6, Eltseq(Kl_mod_l[3])), ZZ), QQx);
+					Rl := (1/l) * Kli * R0;
+					eqs := Rl * col_qix;
+					i0 := 1;
+					for qi in Eltseq(eqs) do
+					    if qi ne 0 then
+						assert (qi mod rx) eq 0;
+						g := qi div rx;
+						if Degree(g) eq 0 then
+						    g := ZZ ! g;
+						    if (Gcd(g, l) eq 1) and (Gcd(g, prod_bad_l) eq 1) and (Abs(g) le min_g) and Max([Max([Abs(ci) : ci in Eltseq(ri)]) : ri in Eltseq(Rl[i0]) | ri ne 0]) le max_i then
+							// is it already in the list?
+							ri0 := [Evaluate(QQx ! ri, 19) : ri in Eltseq(Rl[i0])];
+							hash := &+[ri0[i]*1009^(i-1) : i in [1..#ri0]];
+							if not hash in list_hashes then
+							    printf "ker([a0,a1,a2,a3,a4,a5]=%2o,%2o,%2o,%2o,%2o,%2o,[b0,b1,b2]=%2o,%2o,%2o) = %19o v = %43o eq = %o*rx = %o * rx\n", a0,a1,a2,a3,a4,a5, b0,b1,b2, Kli[i0], Rl[i0], qi div rx, Factorization(g);
+							    Append(~list_hashes, hash);
+							    Append(~list_equations, <Rl[i0], qi div rx, [a0,a1,a2,a3,a4,a5], [b0,b1,b2]>);
+							end if;
+						    end if;
+						end if;
+					    elif Max([Max([Abs(ci) : ci in Eltseq(ri)]) : ri in Eltseq(Rl[i0]) | ri ne 0]) le max_i then
+						// a zero-equation, keep some of them to be able to reduce the matrix further at the next step
+						ri0 := [Evaluate(QQx ! ri, 19) : ri in Eltseq(Rl[i0])];
+						hash := &+[ri0[i]*1009^(i-1) : i in [1..#ri0]];
+						if not hash in list_hashes then
+						    printf "ker([a0,a1,a2,a3,a4,a5]=%2o,%2o,%2o,%2o,%2o,%2o,[b0,b1,b2]=%2o,%2o,%2o) = %19o v = %43o eq = %o*rx\n", a0,a1,a2,a3,a4,a5, b0,b1,b2, Kli[i0], Rl[i0], 0;
+						    Append(~list_hashes, hash);
+						    Append(~list_equations, <Rl[i0], 0, [a0,a1,a2,a3,a4,a5], [b0,b1,b2]>);
+						end if;
+					    end if;
+					    i0 := i0+1;
+					end for;// eqs
+				    end for;// b2
+				end for;// b1
+			    end for;// b0
+			end for;// a5
+		    end for;// a4
+		end for;// a3
+	    end for;// a2
+	end for;// a1
+    end for;// a0
+
+end procedure;
+
+procedure test_smith15_sg18b()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18b_polynomials();
+    optimal_ate_pairing(k, qx, rx);
+end procedure;
+
+procedure test_smith15_sg18c()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18c_polynomials();
+    optimal_ate_pairing(k, qx, rx);
+end procedure;
+
+procedure test_smith15_kss20a()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss20a_polynomials();
+    optimal_ate_pairing(k, qx, rx);
+end procedure;
+
+procedure test_smith15_kss20b()
+    rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss20b_polynomials();
+    optimal_ate_pairing(k, qx, rx);
+end procedure;
+
+procedure test_smith15_sg20a()
+    rx, tx, qx, yx, cx, lambx, D, k := get_auri_k20a_polynomials();
+    optimal_ate_pairing(k, qx, rx);
+end procedure;
+
+procedure test_smith15_sg20b()
+    rx, tx, qx, yx, cx, lambx, D, k := get_auri_k20b_polynomials();
+    optimal_ate_pairing(k, qx, rx);
+end procedure;
+
+/*
+test_smith15_g2_bn();
+test_smith15_g1_kss16();
+test_smith15_g2_kss16();
+test_smith15_g1_kss18();
+test_yu_dai_th1_kss18(u);
+test_yu_dai_th1_kss16(u);
+test_smith15_kss20a();
+test_smith15_kss20b();
+test_smith15_sg20a();
+test_smith15_sg20b();
+*/

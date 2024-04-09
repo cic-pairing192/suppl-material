@@ -1,0 +1,879 @@
+// script adapted from
+// https://gitlab.inria.fr/zk-curves/snark-2-chains/ by Y. El Housni and A. Guillevic, MIT license
+// file magma/script_formulas_bw6_bls12_bls24_bn.mag
+// https://gitlab.inria.fr/zk-curves/snark-2-chains/-/blob/master/magma/script_formulas_bw6_bls12_bls24_bn.mag#L6
+
+ZZ := Integers();
+QQ := Rationals();
+QQx<x> := PolynomialRing(QQ);
+
+function compute_lll_matrix_poly(ax, bx, max_degree_bx, QQx: verbose:=false)
+    /* Adapted from Y. El Housni and A. Guillevic code at
+       https://gitlab.inria.fr/zk-curves/snark-2-chains/
+       This function computes a LLL reduced basis over polynomials
+       M = [          ax, 0, 0, 0, ..., 0, 0]
+           [-bx   mod ax, 1, 0, 0, ..., 0, 0]
+           [-bx^2 mod ax, 0, 1, 0, ..., 0, 0]
+           [...                             ]
+           [-bx^j mod ax, 0, 0, 0, ..., 0, 1]
+       j = order(bx) - 1 = EulerPhi(k) - 1
+    */
+    local j, Row1, Col1, N, M, R, degrees, rr, cc;
+    //j := Min(Floor(Degree(ax)/Degree(bx)) + 1, max_degree_bx);
+    j := max_degree_bx;
+    Row1 := Matrix(QQx, 1, j, [ax] cat [0: ei in [1..j-1]]);
+    Col1 := Matrix(QQx, j-1, 1, [(-bx^ej) mod ax: ej in [1 .. j-1]]);
+    N := HorizontalJoin(Col1, IdentityMatrix(QQx,j-1));
+    M := VerticalJoin(Row1, N);
+    if verbose then
+        printf "ax = %o\nbx = %o\n max_degree_bx = %o\n", ax, bx, max_degree_bx;
+        printf "j = %o\n", j;
+        printf "Row1 = %o\n", Row1;
+        printf "Col1 = %o\n", Col1;
+        printf "M = %o\n", M;
+    end if;
+    R := LLL(M);
+    degrees := ZeroMatrix(ZZ, NumberOfRows(R), NumberOfColumns(R));
+    for rr:=1 to NumberOfRows(R) do
+        for cc:=1 to NumberOfColumns(R) do
+            degrees[rr][cc] := Degree(R[rr][cc]);
+        end for;
+    end for;
+    // find the lcm of the denominators of R and multiply R
+    lcmR := 1;
+    for i:= 1 to NumberOfRows(R) do
+        for j:= 1 to NumberOfColumns(R) do
+            if R[i][j] in QQ then
+                lcmR := Lcm(lcmR, Denominator(QQ ! R[i][j]));
+            else
+                lcmR := Lcm(lcmR, Lcm([Denominator(QQ ! ri): ri in Eltseq(R[i][j])]));
+            end if;
+        end for;
+    end for;
+    return R, lcmR, degrees;
+end function;
+
+function poly_cofactor_twist_g1_g2(k, px, rx, tx, cx, yx, D)
+    /* Adapted from Y. El Housni and A. Guillevic code at https://gitlab.inria.fr/zk-curves/cofactor/
+     * File https://gitlab.inria.fr/zk-curves/cofactor/-/blob/main/sage/cofactor_clearing.py#L791
+    Compute the curve co-factors for G2 and the twists of G1, G2
+    INPUT:
+    - `k`: embedding degree
+    - `px`: polynomial of the prime field characteristic
+    - `rx`: polynomial of the prime subgroup order
+    - `tx`: polynomial of the trace
+    - `cx`: cofactor of G1 s.t. rx*cx = px+1-tx
+    - `yx`: such that tx^2 - 4*px = -D*yx^2
+     */
+    twx := px + 1 + tx;
+    D := Abs(D);
+    // does it factor?
+    if (D eq 3) and (k mod 6) eq 0 then
+        // sextic twist
+        d := 6;
+    elif (D eq 3) and (k mod 3) eq 0 then
+        // cubic twist
+        d := 3;
+    elif ((D eq 1) or (D eq 4)) and (k mod 4) eq 0 then
+        // quartic twist
+        d := 4;
+    elif (k mod 2) eq 0 then
+        // quadratic twist
+        d := 2;
+    else
+        // no twist
+        d := 1;
+    end if;
+    k1 := k div d;
+    // compute the curve order up to k1 before computing the d-twist order
+    t1 := tx;
+    // (p+1-t)*(p+1+t) = p^2 + 1 + 2*p - t^2 = p^2 + 1 - (t^2 - 2*p)
+    t2 := tx^2 - 2*px;
+    // tk = t1*t_{k-1} -p*t_{k-2}
+    i := 3;
+    t_im1 := t2; // t_{i-1}
+    t_im2 := t1; // t_{i-2}
+    while i le k1 do
+        t_i := t1*t_im1 - px*t_im2;
+        t_im2 := t_im1;
+        t_im1 := t_i;
+        i := i+1;
+    end while;
+    if k1 eq 1 then
+        tx_k1 := t1;
+    elif k1 eq 2 then
+        tx_k1 := t2;
+    else
+        tx_k1 := t_i;
+    end if;
+    px_k1 := px^k1;
+    //if d eq 3 or d eq 6 or d eq 4 then
+    yx_k1_square := (tx_k1^2 - 4*px_k1)/(-D);
+    lc := LeadingCoefficient(yx_k1_square);
+    is_square_lc, yx_k1 := IsSquare(lc);
+    assert is_square_lc;
+    yx_k1_square_monic := yx_k1_square / lc;
+    yx_k1_factors := Factorization(yx_k1_square_monic);
+    //yx_k1 := Sqrt(QQ ! lc);
+    //printf "yx_k1 initialized at %o\n", yx_k1;
+    for fa_ee in yx_k1_factors do
+        fa := fa_ee[1];
+        ee := fa_ee[2];
+        assert (ee mod 2) eq 0;
+        yx_k1 := yx_k1 * fa^(ee div 2);
+    end for;
+    //printf "yx_k1 = %o\n", yx_k1;
+    assert yx_k1^2 eq yx_k1_square;
+    //else
+    //    yx_k1 := 1;
+    //end if;
+    if d eq 3 or d eq 6 then
+        if d eq 6 then
+            E2_order := px_k1+1-(-3*yx_k1+tx_k1)/2;
+            E2_order_:= px_k1+1-( 3*yx_k1+tx_k1)/2;
+            g2twx := px_k1+1+(-3*yx_k1+tx_k1)/2;
+            g2twx_:= px_k1+1+( 3*yx_k1+tx_k1)/2;
+            txe := (-3*yx_k1+tx_k1)/2;
+            txe_:= ( 3*yx_k1+tx_k1)/2;
+        elif d eq 3 then
+            E2_order := px_k1+1-(-3*yx_k1-tx_k1)/2;
+            E2_order_:= px_k1+1-( 3*yx_k1-tx_k1)/2;
+            g2twx := px_k1+1+(-3*yx_k1-tx_k1)/2;
+            g2twx_:= px_k1+1+( 3*yx_k1-tx_k1)/2;
+            txe := (-3*yx_k1-tx_k1)/2;
+            txe_:= ( 3*yx_k1-tx_k1)/2;
+        end if;
+        if (E2_order mod rx) ne 0 and (E2_order_ mod rx) eq 0 then
+            E2_order := E2_order_;
+            g2twx := g2twx_;
+            txe := txe_;
+        end if;
+    elif d eq 4 then
+        if D eq 1 then
+            E2_order := px_k1 + 1 + yx_k1;
+            g2twx := px_k1 + 1 - yx_k1; // quadratic twist of G2
+            txe := -yx_k1;
+            txe_:=  yx_k1;
+        elif D eq 4 then
+            E2_order := px_k1 + 1 + 2*yx_k1;
+            g2twx := px_k1 + 1 - 2*yx_k1; // quadratic twist of G2
+            txe := -2*yx_k1;
+            txe_:=  2*yx_k1;
+        end if;
+        if (E2_order mod rx) ne 0 and (g2twx mod rx) eq 0 then
+            tmp := E2_order;
+            E2_order := g2twx;
+            g2twx := tmp;
+            txe := txe_;
+        end if;
+    elif d eq 2 then
+        E2_order := px_k1 + 1 + tx_k1;
+        g2twx := px_k1 + 1 - tx_k1; // quadratic twist of G2, this is E(Fq^e)
+        txe := -tx_k1;
+    else // d == 1
+        assert d eq 1;
+        E2_order := px_k1 + 1 - tx_k1;
+        g2twx := px_k1 + 1 + tx_k1; // quadratic twist of G2
+        txe := tx_k1;
+    end if;
+    assert (E2_order mod rx) eq 0;
+    assert E2_order eq px_k1 + 1 - txe;
+    if d gt 1 then
+        g2cx := E2_order div rx; // irreducible
+        // compute yx_e
+        yx_e_square := (txe^2 - 4*px_k1)/(-D);
+        lc := LeadingCoefficient(yx_e_square);
+        is_square_lc, yx_e := IsSquare(lc);
+        assert is_square_lc;
+        yx_e_square_monic := yx_e_square / lc;
+        yx_e_factors := Factorization(yx_e_square_monic);
+        for fa_ee in yx_e_factors do
+            fa := fa_ee[1];
+            ee := fa_ee[2];
+            assert (ee mod 2) eq 0;
+            yx_e := yx_e * fa^(ee div 2);
+        end for;
+        assert yx_e^2 eq yx_e_square;
+    else
+        g2cx := E2_order div rx^2; // irreducible
+        yx_e := yx_k1;
+    end if;
+    // do cx, twx, g2cx, g2twx factor?
+    polys_cofact_twists := [cx, twx, g2cx, g2twx, txe, yx_e];
+    label_factors := ["cx", "twx", "g2cx", "g2twx", "txe", "yxe"];
+    return polys_cofact_twists, label_factors;
+end function;
+
+function G1_cofactor_clearing(qx, rx, tx, yx, cx, D)
+    /* Compute the eigenvalue lambda of an endomorphism phi
+       1. modulo c(x) the cofactor of G1 (cofactor clearing)
+       2. modulo r(x) the pairing-friendly subgroup (subgroup membership testing)
+     */
+    local eigenvalue_phi_mod_c, eigenvalue_phi_mod_r, g, ux, vx, g_t2_y;
+    eigenvalue_phi_mod_c := 1;
+    eigenvalue_phi_mod_r := 1;
+    tx2 := tx - 2;
+    // GLV with cx, resp. rx and eigenvalue_phi such that
+    // l0 + l1*eigenvalue_phi = h*cx (resp. rx) where h (maybe h(x)) is some factor
+    // what is eigenvalue_phi?
+    // qx + 1 - tx == rx * cx
+    // tx^2 + D*yx^2 + 4 - 4*tx == 4 * rx * cx
+    // (tx-2)^2 + D*yx^2 == 4 * rx * cx
+    // (tx - 2)/yx <-> sqrt(-D) mod cx, resp. mod rx
+    // D*yx / (tx-2) <-> sqrt(-D) mod cx, resp. rx
+    // invert either yx or (tx-2) mod cx, resp. rx
+    // 1. modulo cx
+    if Degree(cx) gt 0 then
+        g, ux, vx := Xgcd(cx, yx);
+        assert g eq (ux * cx + vx * yx);
+        if Degree(g) eq 0 then
+            printf "deg(xgcd(y, c)) == 0, ok\n";
+        else
+            printf "problem deg(xgcd(y, c)) = %o, gx = %o\n", Degree(g), g;
+            g_t2_y := Gcd(tx-2, yx);
+            if Degree(g_t2_y) ge 1 then // in the case of BLS, it will be at least (x-1), a factor of cx, consider the cofactor of cx
+                // (tx-2)^2 + D*yx^2 == rx*cx => gcd(tx-2, yx) to the square divides rx * cx => divides cx
+                // ((tx-2)/gx)^2 + D*(yx/gx)^2 == rx * cx/gx^2
+                assert (cx mod g_t2_y^2) eq 0;
+                cx := cx div g_t2_y^2;
+                tx2 := (tx-2) div g_t2_y;
+                yx := yx div g_t2_y;
+                g, ux, vx := Xgcd(cx, yx);
+                assert Degree(g) eq 0;
+            end if;
+        end if;
+        assert g eq (ux * cx + vx * yx);
+        if Degree(cx) eq 0 then
+            cx := QQ ! cx;
+        else
+            sqrt_D := tx2 * vx / (QQ ! g);
+            sqrt_D := sqrt_D mod cx;
+            if D eq 3 then
+                eigenvalue_phi_mod_c := (-1 + sqrt_D)/2;
+                assert ((eigenvalue_phi_mod_c^2 + eigenvalue_phi_mod_c + 1) mod cx) eq 0;
+            elif D eq 1 then
+                eigenvalue_phi_mod_c := sqrt_D;
+                assert ((eigenvalue_phi_mod_c^2 + 1) mod cx) eq 0;
+            elif D eq 4 then
+                eigenvalue_phi_mod_c := sqrt_D/2;
+                assert ((eigenvalue_phi_mod_c^2 + 1) mod cx) eq 0;
+            else
+                printf "problem with D: D=%o\n", D;
+                eigenvalue_phi_mod_c := 0;
+            end if;
+            printf "cx = %o, eigenvalue_phi_mod_c = %o\n", cx, eigenvalue_phi_mod_c;
+            // now LLL
+            max_degree_qx := 2;
+            R, lcmR, degrees := compute_lll_matrix_poly(cx, eigenvalue_phi_mod_c, max_degree_qx, QQx: verbose:=false);
+            printf "multiply R by %o:\n%o\n", lcmR, lcmR*R;
+        end if;
+    end if;
+    // 2. modulo rx (subgroup membership testing)
+    // the problem of a non-trivial GCD of yx and tx-2 has been solved already
+    g, ux, vx := Xgcd(rx, yx);
+    assert g eq (ux * rx + vx * yx);
+    assert Degree(g) eq 0;
+    printf "deg(xgcd(y, r)) == 0, ok\n";
+    sqrt_D_r := tx2 * vx / (QQ ! g);
+    sqrt_D_r := sqrt_D_r mod rx;
+    assert (sqrt_D_r^2 mod rx) eq -D;
+    if D eq 3 then
+        eigenvalue_phi_mod_r := (-1 + sqrt_D_r)/2;
+        assert ((eigenvalue_phi_mod_r^2 + eigenvalue_phi_mod_r + 1) mod rx) eq 0;
+    elif D eq 1 then
+        eigenvalue_phi_mod_r := sqrt_D_r;
+        assert ((eigenvalue_phi_mod_r^2 + 1) mod rx) eq 0;
+    elif D eq 4 then
+        eigenvalue_phi_mod_r := sqrt_D_r/2;
+        assert ((eigenvalue_phi_mod_r^2 + 1) mod rx) eq 0;
+    else
+        printf "problem with D: D=%o\n", D;
+        eigenvalue_phi_mod_r := 0;
+    end if;
+    printf "rx = %o, eigenvalue_phi_mod_r = %o\n", rx, eigenvalue_phi_mod_r;
+    // now LLL
+    R, lcmR, degrees := compute_lll_matrix_poly(rx, eigenvalue_phi_mod_r, 2, QQx: verbose:=false);
+    printf "multiply R by %o:\n%o\n", lcmR, lcmR*R;
+    return cx, eigenvalue_phi_mod_c, rx, eigenvalue_phi_mod_r;
+end function;
+
+function G2_cofactor_clearing(qx, rx, tx, yx, tx_e, yx_e, h2x, D, k)
+    /* Compute the eigenvalue lambda of an endomorphism psi
+       1. modulo h2(x) the cofactor of G2 (cofactor clearing)
+       2. modulo r(x) the pairing-friendly subgroup (subgroup membership testing on G2)
+     */
+    local eigenvalue_psi_mod_h, eigenvalue_psi_mod_r, eigenvalue_phi_mod_h, eigenvalue_phi_mod_r, g, ux, vx, g_t2_y;
+    eigenvalue_psi_mod_h := 1;
+    eigenvalue_psi_mod_r := 1;
+    eigenvalue_phi_mod_h := 1;
+    eigenvalue_phi_mod_r := 1;
+    txe2 := tx_e - 2;
+    // GLV with h2x, resp. rx and eigenvalue_psi such that
+    // l0 + l1*eigenvalue_psi + l2*eigenvalue_psi^2 + l3*eigenvalue_psi^3 + ... = h*h2x (resp. rx) where h (maybe h(x)) is some factor
+    // what is eigenvalue_psi?
+    // it is a root of the characteristic polynomial of the Frobenius, that is, X^2 - t*X + q where t is the trace of E over Fq and q the base field order.
+    // over an extension of degree e, the twist of degree d satisfies (where k = e*d)
+    // qx^e + 1 - tx_e == rx * h2x
+    // tx_e^2 + D*yx_e^2 + 4 - 4*tx_e == 4 * rx * h2x
+    // (tx_e-2)^2 + D*yx_e^2 == 4 * rx * h2x
+    // (tx_e - 2)/yx_e <-> sqrt(-D) mod h2x, resp. mod rx
+    // D*yx_e / (tx_e-2) <-> sqrt(-D) mod h2x, resp. rx
+    // invert either yx_e or (tx_e-2) mod h2x, resp. rx
+    // 1. modulo h2x
+    if Degree(h2x) gt 0 then
+        g, ux, vx := Xgcd(h2x, yx_e);
+        assert g eq (ux * h2x + vx * yx_e);
+        if Degree(g) eq 0 then
+            printf "deg(xgcd(y, h)) == 0, ok\n";
+        else
+            printf "problem deg(xgcd(y, h)) = %o, gx = %o\n", Degree(g), g;
+            g_t2_y := Gcd(tx_e-2, yx_e);
+            if Degree(g_t2_y) ge 1 then
+                // (tx-2)^2 + D*yx^2 == rx*cx => gcd(tx-2, yx) to the square divides rx * cx => divides cx
+                // ((tx-2)/gx)^2 + D*(yx/gx)^2 == rx * cx/gx^2
+                assert (h2x mod g_t2_y^2) eq 0;
+                h2x := h2x div g_t2_y^2;
+                txe2 := (txe2) div g_t2_y;
+                yx_e := yx_e div g_t2_y;
+                g, ux, vx := Xgcd(h2x, yx_e);
+                assert Degree(g) eq 0;
+            end if;
+        end if;
+        assert g eq (ux * h2x + vx * yx_e);
+        if Degree(h2x) eq 0 then
+            h2x := QQ ! h2x;
+        else
+            sqrt_D := txe2 * vx / (QQ ! g);
+            sqrt_D := sqrt_D mod h2x;
+            assert (sqrt_D^2 mod h2x) eq -D;
+            eigenvalue_psi_mod_h := (tx + yx*sqrt_D)/2 mod h2x;
+            eigenvalue_psi_mod_h_ := (tx - yx*sqrt_D)/2 mod h2x;
+            assert (eigenvalue_psi_mod_h * eigenvalue_psi_mod_h_ mod h2x) eq (qx mod h2x);
+            assert ((eigenvalue_psi_mod_h+eigenvalue_psi_mod_h_) mod h2x) eq (tx mod h2x);
+            assert ((eigenvalue_psi_mod_h^2 - tx *eigenvalue_psi_mod_h + qx) mod h2x) eq 0;
+            assert ((eigenvalue_psi_mod_h_^2 - tx *eigenvalue_psi_mod_h_ + qx) mod h2x) eq 0;
+            if D eq 3 then
+                eigenvalue_phi_mod_h := (-1 + sqrt_D)/2 mod h2x;
+                assert ((eigenvalue_phi_mod_h^2 + eigenvalue_phi_mod_h + 1) mod h2x) eq 0;
+            elif D eq 1 then
+                eigenvalue_phi_mod_h := sqrt_D;
+                assert ((eigenvalue_phi_mod_h^2 + 1) mod h2x) eq 0;
+            elif D eq 4 then
+                eigenvalue_phi_mod_h := sqrt_D/2;
+                assert ((eigenvalue_phi_mod_h^2 + 1) mod h2x) eq 0;
+            else
+                printf "problem with D: D=%o\n", D;
+                eigenvalue_phi_mod_h := 0;
+            end if;
+            printf "h2x = %o\n", h2x;
+            printf "eigenvalue_psi_mod_h = %o\n", eigenvalue_psi_mod_h;
+            printf "eigenvalue_psi_mod_h_= %o\n", eigenvalue_psi_mod_h_;
+            R, lcmR, degrees := compute_lll_matrix_poly(h2x, eigenvalue_psi_mod_h, EulerPhi(k), QQx: verbose:=false);
+            printf "multiply R by %o:\n%o\n", lcmR, lcmR*R;
+            printf "eigenvalue_phi_mod_h = %o\n", eigenvalue_phi_mod_h;
+            R, lcmR, degrees := compute_lll_matrix_poly(h2x, eigenvalue_phi_mod_h, 2, QQx: verbose:=false);
+            printf "multiply R by %o:\n%o\n", lcmR, lcmR*R;
+        end if;
+    end if;
+    // 2. modulo rx (subgroup membership testing)
+    // the problem of a non-trivial GCD of yx_e and tx_e-2 has been solved already
+    g, ux, vx := Xgcd(rx, yx_e);
+    assert g eq (ux * rx + vx * yx_e);
+    assert Degree(g) eq 0;
+    printf "deg(xgcd(y, r)) == 0, ok\n";
+    sqrt_D_r := txe2 * vx / (QQ ! g);
+    sqrt_D_r := sqrt_D_r mod rx;
+    assert (sqrt_D_r^2 mod rx) eq -D;
+    eigenvalue_psi_mod_r := (tx + yx*sqrt_D_r)/2 mod rx;
+    eigenvalue_psi_mod_r_ := (tx - yx*sqrt_D_r)/2 mod rx;
+    assert (eigenvalue_psi_mod_r * eigenvalue_psi_mod_r_ mod rx) eq (qx mod rx);
+    assert ((eigenvalue_psi_mod_r+eigenvalue_psi_mod_r_) mod rx) eq (tx mod rx);
+    assert ((eigenvalue_psi_mod_r^2 - tx *eigenvalue_psi_mod_r + qx) mod rx) eq 0;
+    assert ((eigenvalue_psi_mod_r_^2 - tx *eigenvalue_psi_mod_r_ + qx) mod rx) eq 0;
+    printf "rx = %o, eigenvalue_psi_mod_r = %o\n", rx, eigenvalue_psi_mod_r;
+    printf "rx = %o, eigenvalue_psi_mod_r_= %o\n", rx, eigenvalue_psi_mod_r_;
+    // now LLL
+    if Degree(eigenvalue_psi_mod_r) eq 0 and Degree(eigenvalue_psi_mod_r_) gt 0 then
+        eigenvalue_psi_mod_r := eigenvalue_psi_mod_r_;
+    end if;
+    R, lcmR, degrees := compute_lll_matrix_poly(rx, eigenvalue_psi_mod_r, EulerPhi(k), QQx: verbose:=false);
+    printf "multiply R by %o:\n%o\n", lcmR, lcmR*R;
+    /*
+    if D eq 3 then
+        eigenvalue_phi_mod_r := (-1 + sqrt_D_r)/2;
+        assert ((eigenvalue_phi_mod_r^2 + eigenvalue_phi_mod_r + 1) mod rx) eq 0;
+    elif D eq 1 then
+        eigenvalue_phi_mod_r := sqrt_D_r;
+        assert ((eigenvalue_phi_mod_r^2 + 1) mod rx) eq 0;
+    elif D eq 4 then
+        eigenvalue_phi_mod_r := sqrt_D_r/2;
+        assert ((eigenvalue_phi_mod_r^2 + 1) mod rx) eq 0;
+    else
+        printf "problem with D: D=%o\n", D;
+        eigenvalue_phi_mod_r := 0;
+    end if;
+    */
+    return h2x, eigenvalue_psi_mod_h, rx, eigenvalue_psi_mod_r;
+end function;
+
+function get_bls_polynomials(k)
+    /* Adapted from https://gitlab.inria.fr/zk-curves/cofactor
+     * File https://gitlab.inria.fr/zk-curves/cofactor/-/blob/main/sage/cofactor_clearing.py#L21
+     */
+    local r_bls, t_bls, c_bls, y_bls, q_bls, D, eigenvalue_phi_bls;
+    r_bls := CyclotomicPolynomial(k);
+    t_bls := x+1;
+    D := 3;
+    assert (k mod 3) eq 0;
+    if (k mod 6) eq 0 then
+        y_bls := (t_bls-2)*(2*x^(k div 6)-1)/3;
+    else // k = 3 mod 6
+        y_bls := (t_bls-2)*(2*x^(k div 3)+1)/3;
+    end if;
+    if k ne 6 and Degree(y_bls) ge Degree(r_bls) then
+        y_bls := y_bls mod r_bls;
+    end if;
+    q_bls := (t_bls^2 + 3*y_bls^2)/4;
+    assert ((q_bls+1-t_bls) mod r_bls) eq 0;
+    c_bls := (q_bls+1-t_bls) div r_bls;
+    // if k is a power of 3, r_bls is multiple of 3, simplify
+    v, u := Valuation(k, 3); // k = 3^v * u
+    if u eq 1 then
+        r_bls := (QQx ! 1/3) * r_bls;
+        c_bls := c_bls * 3;
+    end if;    
+    if (k mod 6) eq 3 then
+        eigenvalue_phi_bls := x^(k div 3);
+    elif (k mod 6) eq 0 then
+        eigenvalue_phi_bls := x^(k div 6)-1;
+    end if;
+    assert ((eigenvalue_phi_bls^2 + eigenvalue_phi_bls + 1) mod r_bls) eq 0;
+    return r_bls, t_bls, q_bls, y_bls, c_bls, D, eigenvalue_phi_bls;
+end function;
+
+function get_bn_polynomials()
+    /* Adapted from https://gitlab.inria.fr/zk-curves/cofactor
+     * File https://gitlab.inria.fr/zk-curves/cofactor/-/blob/main/sage/cofactor_clearing.py#L314
+     */
+    local r_bn, t_bn, q_bn, y_bn, c_bn, D, eigenvalue_phi_bn;
+    // polynomials of BN curve
+    r_bn := 36*x^4 + 36*x^3 + 18*x^2 + 6*x + 1;
+    t_bn := 6*x^2+1;
+    q_bn := 36*x^4 + 36*x^3 + 24*x^2 + 6*x + 1;
+    y_bn := 6*x^2 + 4*x + 1;
+    c_bn := QQx ! 1;
+    D := 3;
+    eigenvalue_phi_bn := (t_bn-1)^4 mod r_bn;
+    if LeadingCoefficient(eigenvalue_phi_bn) lt 0 then // x^2 + x + 1 = 0 so the other root is x^2 = -x-1
+        eigenvalue_phi_bn := - eigenvalue_phi_bn-1;
+    end if;
+    assert ((eigenvalue_phi_bn^2 + eigenvalue_phi_bn + 1) mod r_bn) eq 0;
+    return r_bn, t_bn, q_bn, y_bn, c_bn, D, eigenvalue_phi_bn;
+end function;
+
+function get_kss_polynomials(k)
+    /* Adapted from https://gitlab.inria.fr/zk-curves/cofactor
+     * File https://gitlab.inria.fr/zk-curves/cofactor/-/blob/main/sage/cofactor_clearing.py#L362
+     */
+    local r_kss, t_kss, q_kss, y_kss, c_kss, D, m, u_mod_m, eigenvalue_phi_kss;
+    // polyomials of KSS curves according to k
+    assert k in [8, 16, 18, 32, 36, 40, 54];
+    if k eq 8 then
+        q_kss := QQx ! (x^6+2*x^5-3*x^4+8*x^3-15*x^2-82*x+125)/180;
+        r_kss := QQx ! (x^4-8*x^2+25)/450;
+        t_kss := QQx ! (2*x^3-11*x+15)/15;
+        c_kss := QQx ! (x^2 + 2*x + 5)*5/2;
+        y_kss := QQx ! (x^3 + 5*x^2 + 2*x - 20)/15;
+        D := 1;
+        m := 30;
+        u_mod_m := [5, 25];
+        // u = 5, 25 mod 30
+    elif k eq 16 then
+        q_kss := QQx ! (x^10 + 2*x^9 + 5*x^8 + 48*x^6 + 152*x^5 + 240*x^4 + 625*x^2 + 2398*x + 3125)/980;
+        r_kss := QQx ! (x^8 + 48*x^4 + 625)/61250;
+        t_kss := QQx ! (2*x^5 + 41*x + 35)/35;
+        c_kss := QQx ! (x^2 + 2*x + 5)*125/2;
+        y_kss := QQx ! (x^5 + 5*x^4 + 38*x + 120)/35;
+        D := 1;
+        m := 70;
+        u_mod_m := [25, 45];
+        // u = 25, 45 mod 70
+    elif k eq 18 then
+        q_kss := QQx ! (x^8 + 5*x^7 + 7*x^6 + 37*x^5 + 188*x^4 + 259*x^3 + 343*x^2 + 1763*x + 2401)/21;
+        r_kss := QQx ! (x^6 + 37*x^3 + 343)/343;
+        t_kss := QQx ! (x^4+16*x+7)/7;
+        c_kss := QQx ! (x^2 + 5*x + 7)*49/3;
+        y_kss := QQx ! (5*x^4 + 14*x^3 + 94*x + 259)/21;
+        D := 3;
+        m := 21;
+        u_mod_m := [14];
+        // u := 14 mod 21
+    elif k eq 32 then
+        q_kss := QQx ! (x^18-6*x^17+13*x^16+57120*x^10-344632*x^9 + 742560*x^8 + 815730721*x^2 - 4948305594*x + 10604499373)/2970292;
+        r_kss := QQx ! (x^16+57120*x^8+815730721)/93190709028482;
+        t_kss := QQx ! (-2*x^9 - 56403*x + 3107)/3107;
+        y_kss := QQx ! (3*x^9 - 13*x^8 + 86158*x - 371280)/3107;
+        c_kss := QQx ! (x^2 - 6*x + 13)*62748517/2;
+        D := 1;
+    elif k eq 36 then
+        q_kss := QQx ! (x^14-4*x^13+7*x^12+683*x^8-2510*x^7 + 4781*x^6 + 117649*x^2 - 386569*x + 823543)/28749;
+        r_kss := QQx ! (x^12 + 683*x^6 + 117649)/161061481;
+        t_kss := QQx ! (2*x^7+757*x+259)/259;
+        y_kss := QQx ! (4*x^7 - 14*x^6 + 1255*x - 4781)/777;
+        c_kss := QQx ! (x^2 - 4*x + 7)*16807/3;
+        D := 3;
+    elif k eq 40 then
+        q_kss := QQx ! (x^22 - 2*x^21 + 5*x^20 + 6232*x^12 - 10568*x^11 + 31160*x^10 + 9765625*x^2 - 13398638*x + 48828125)/1123380;
+        r_kss := QQx ! (x^16 + 8*x^14 + 39*x^12 + 112*x^10 - 79*x^8 + 2800*x^6 + 24375*x^4 + 125000*x^2 + 390625)/2437890625;
+        t_kss := QQx ! (2*x^11 + 6469*x + 1185)/1185;
+        y_kss := QQx ! (x^11 - 5*x^10 + 2642*x - 15580)/1185;
+        c_kss := QQx ! (x^2 - 2*x + 5) * (x^4 - 8*x^2 + 25)*78125/36;
+        D := 1;
+    elif k eq 54 then
+        q_kss := 1+3*x+3*x^2+3^5*x^9+3^5*x^10+3^6*x^10+3^6*x^11+3^9*x^18+3^10*x^19+3^10*x^20;
+        r_kss := 1+3^5*x^9+3^9*x^18;
+        t_kss := 1+3^5*x^10;
+        y_kss := 243*x^10 + 162*x^9 + 2*x + 1;
+        c_kss := 1+3*x+3*x^2;
+        D := 3;
+        m := 1;
+        u_mod_m := [0];
+    end if;
+    if D eq 1 then
+        eigenvalue_phi_kss := (t_kss-1)^(k div 4) mod r_kss;
+        assert ((eigenvalue_phi_kss^2 + 1) mod r_kss) eq 0;
+    elif D eq 3 then
+        if (k mod 6) eq 0 then
+            eigenvalue_phi_kss := ((t_kss-1)^(k div 6) - 1) mod r_kss;
+        elif (k mod 3) eq 0 then
+            eigenvalue_phi_kss := (t_kss-1)^(k div 3) mod r_kss;
+        end if;
+        assert ((eigenvalue_phi_kss^2 + eigenvalue_phi_kss + 1) mod r_kss) eq 0;
+    end if;
+    assert ((q_kss+1-t_kss) mod r_kss) eq 0;
+    assert (Evaluate(CyclotomicPolynomial(k), q_kss) mod r_kss) eq 0;
+    assert IsIrreducible(q_kss);
+    assert IsIrreducible(r_kss);
+    assert t_kss^2 - 4*q_kss eq -D*y_kss^2;
+    return r_kss, t_kss, q_kss, y_kss, c_kss, D, eigenvalue_phi_kss;
+end function;
+
+function get_aurifeuillean(k, D: exp_tr := 0)
+    /* eprint 2018/193 https://eprint.iacr.org/2018/193 */
+    local l, m, zeta_k_mod_rx, rx, tx, px, yx, cx, betax, lambx;
+    if k eq 12 and D eq 3 then
+        D := 3;
+        a := -2;
+        rho := 3/2;
+        rx := 4*x^4 + 4*x^3 + 2*x^2 + 2*x + 1;
+        exp_tr := 1;
+        // alternatively a=2 and exp_tr=7
+        tx := -2*x^2 + 1;
+        px := (64*x^6 + 48*x^5 + 44*x^4 + 52*x^3 + 16*x^2 + 10*x + 7)/3;
+        m := 3;
+        u_m := [2];
+        cofactor_r := [1];
+        sigma_x := x;
+        yx := (-16*x^3 - 6*x^2 - 4*x - 5)/3;
+        cx := (16*x^2 - 4*x + 7)/3;
+        betax := 96*x^5 + 8*x^4 + 66*x^3 + 38*x^2 + x + 16;
+        lambx := -4*x^3 - 2*x^2 - 2*x - 2;
+    elif k eq 18 and D eq 3 then
+        D := 3;
+        a := 3;
+        rho := 5/3;
+        rx := 27*x^6 + 9*x^3 + 1;
+        lambx := -9*x^3 - 2;
+        sigma_x := x;
+        if (exp_tr eq 0 or exp_tr eq 1) then
+            // construction from the paper [Scott Guillevic Waifi 18]
+            exp_tr := 1;
+            tx := 3*x^2 + 1;
+            px := 243*x^10 - 162*x^8 + 81*x^7 + 27*x^6 - 54*x^5 + 9*x^4 + 9*x^3 - 3*x^2 + 1;
+            yx := 18*x^5 - 6*x^3 + 3*x^2 - 1;
+            cx := 9*x^4 - 6*x^2 + 1;
+            betax := (-486*x^9 - 243*x^8 + 486*x^7 + 81*x^6 - 297*x^5 + 54*x^4 + 72*x^3 - 45*x^2 - 6*x + 4)/7;
+        elif exp_tr eq 7 then
+            tx := -27*x^5 - 6*x^2 + 1;
+            px := 243*x^10 + 81*x^8 + 81*x^7 + 27*x^6 + 9*x^4 + 9*x^3 - 3*x^2 + 1;
+            yx := -9*x^5 - 6*x^3 - 1;
+            cx := 9*x^4 + 3*x^2 + 1;
+            betax := (1215*x^9 - 729*x^8 + 972*x^7 + 81*x^6 + 216*x^5 + 117*x^3 + 18*x^2 - 21*x + 11)/8;
+        elif exp_tr eq 13 then
+            tx := 27*x^5 + 3*x^2 + 1;
+            px := 243*x^10 + 81*x^8 + 81*x^7 + 27*x^6 + 54*x^5 + 9*x^4 + 9*x^3 + 6*x^2 + 1;
+            yx := -9*x^5 - 6*x^3 - 3*x^2 - 1;
+            cx := 9*x^4 + 3*x^2 + 1;
+            betax := -486*x^9 + 243*x^8 - 243*x^7 - 54*x^5 - 54*x^4 + 18*x^3 - 18*x^2 + 3*x - 2;
+        end if;
+    end if;
+    return rx, tx, px, yx, cx, D, lambx;
+end function;
+
+function get_fotiadis_martindale_polynomials(family_number)
+    /* Polynomials of families in ePrint 2019/555 */
+    local k, D, l, m, zeta_k_mod_rx, exp_tr, rx, tx, px, yx, cx, betax, lambx;
+    if family_number eq 1 then
+        k := 8;
+        D := 1;
+        l := k;
+        m := 1;
+        zeta_k_mod_rx := x;
+        exp_tr := 1;
+        rx := x^4+1;
+        tx := x+1+rx;
+        yx := x^2*(x-1);
+        px := (x^8+x^6+5*x^4+x^2+4*x+4)/4;
+        cx := x^2*(x^2+1)/4;
+        assert cx*rx eq (px+1-tx);
+        betax := (x^6 - x^5 - 2*x^3 + 3*x^2 - 3*x - 2)/4;
+        lambx := x^2;
+    elif family_number eq 10 then
+        k := 9;
+        D := 3;
+        l := k;
+        m := 1;
+        zeta_k_mod_rx := x^m;
+        exp_tr := 5;
+        rx := (x^6 + x^3 + 1);
+        tx := x^5 + 1 + rx;
+        yx := (3*x^6 + x^5 + 5*x^3 + 2*x^2 + 4)/3;
+        px := (3*x^12 + 3*x^11 + x^10 + 9*x^9 + 7*x^8 + x^7 + 16*x^6 + 10*x^5 + x^4 + 13*x^3 + 4*x^2 + 7)/3;
+        //rx /= QQ(3); // because of u=1 mod 3
+        cx := (px+1-tx) div rx;
+        betax := (129*x^11 - 147*x^10 - 164*x^9 + 103*x^8 - 456*x^7 - 493*x^6 + 80*x^5 - 565*x^4 - 547*x^3 - 198*x^2 - 266*x - 421)/325;
+        lambx := x^3;
+    elif family_number eq 17 then
+        k := 12;
+        D := 3;
+        l := k;
+        m := 1;
+        zeta_k_mod_rx := 6*x^2;
+        exp_tr := 7;
+        rx := 36*x^4 + 36*x^3 +18*x^2 + 6*x + 1;
+        tx := (-6*x^2) + 1;
+        yx := 48*x^3 + 30*x^2 + 12*x + 3;
+        px := 1728*x^6 + 2160*x^5 + 1548*x^4 + 756*x^3 + 240*x^2 + 54*x + 7;
+        cx := (px+1-tx) div rx;
+        betax := 4320*x^5 + 3672*x^4 + 2430*x^3 + 954*x^2 + 237*x + 46;
+        lambx := 36*x^3 + 18*x^2 + 6*x + 1;
+    elif family_number eq 19 then
+        k := 12;
+        D := 3;
+        l := k;
+        m := 1;
+        rx := (x^4 -2*x^3 -3*x^2 + 4*x + 13)/225;
+        tx := (-x^3+4*x^2+5*x+6)/15;
+        yx := (x^3 - 4*x^2 + 5*x + 4)/15;
+        px := (x^6-8*x^5+21*x^4-17*x^3+13*x^2+45*x+21)/225;
+        cx := (px+1-tx) div rx;
+        zeta_k_mod_rx := tx-1;
+        exp_tr := 1;
+        lambx := (2*x^3 - 3*x^2 - 7)/15;
+        betax := (x^5 - 9*x^4 + 30*x^3 - 41*x^2 + 30*x + 15)/30;
+    elif family_number eq 20 then
+        k := 12;
+        D := 3;
+        l := k;
+        m := 1;
+        rx := (x^4 -37*x^2 + 361)/9025; // because for u=209, 266 mod 285, p(u)  in ZZ and 9025 | r(u)
+        tx := (-2*x^3 + 17*x + 95)/95;
+        yx := (8*x^3 + 38*x^2 - 163*x - 703)/285;
+        px := (x^6 + 8*x^5 - 18*x^4 - 326*x^3 - 342*x^2 + 3143*x + 6859)/1425;
+        cx := (px+1-tx) div rx;
+        zeta_k_mod_rx := tx-1;
+        exp_tr := 1;
+        betax := (5*x^5 + 61*x^4 + 173*x^3 - 832*x^2 - 5133*x - 7309)/85;
+        lambx := (x^2 - 21)/5;
+    elif family_number eq 25 then
+        k := 18;
+        D := 3;
+        l := k;
+        m := 1;
+        rx := x^6 - x^3 + 1;
+        tx := x^6 - x^4 - x^3 + 2;
+        yx := (3*x^6 + x^4 - x^3 - 2*x + 2)/3;
+        px := (3*x^12 - 3*x^9 + x^8 - 2*x^7 + 7*x^6 -x^5 -x^4 -4*x^3 + x^2 -2*x + 4)/3;
+        cx := (3*x^6 + x^2 - 2*x + 1)/3;
+        zeta_k_mod_rx := tx-1;
+        exp_tr := 1;
+        lambx := -x^3;
+    elif family_number eq 26 then
+        k := 18;
+        D := 3;
+        l := k;
+        m := 1;
+        rx := x^6 + 37*x^3 + 343;
+        tx := (7*x^6 + x^4 + 259*x^3 + 16*x + 2408)/7;
+        yx := (21*x^6 - 5*x^4 + 763*x^3 - 94*x + 6944)/21;
+        px := (21*x^12 - 6*x^10 + 1533*x^9 + x^8 - 334*x^7 + 42007*x^6 +37*x^5 -6199*x^4 + 512092*x^3 + 343*x^2 -38368*x + 2343376)/21;
+        cx := (21*x^6 - 6*x^4 + 756*x^3 + x^2 - 112*x + 6811)/21;
+        zeta_k_mod_rx := tx-1;
+        exp_tr := 1;
+        lambx := x^3 + 18;
+    end if;
+    return rx, tx, px, yx, cx, D, lambx, k;
+end function;
+
+procedure test_aurifeuillean()
+    printf "Aurifeuillean family\n";
+    for params in [<12, 3, 0>, <18, 3, 1>, <18, 3, 7>, <18, 3, 13>] do
+        k, D, exp_tr := Explode(params);
+        if exp_tr ne 0 then
+            printf "A-k%o-D%o-exp_tr%o\n", k, D, exp_tr;
+        else
+            printf "A-k%o-D%o\n", k, D;
+        end if;
+        rx, tx, qx, yx, cx, D, lambx := get_aurifeuillean(k, D: exp_tr:=exp_tr);
+        polys_cofact_twists, label_factors := poly_cofactor_twist_g1_g2(k, qx, rx, tx, cx, yx, D);
+        cx, twx, h2x, g2twx, tex, yex := Explode(polys_cofact_twists);
+        cx1, eigenvalue_phi_mod_c, rx1, eigenvalue_phi_mod_r := G1_cofactor_clearing(qx, rx, tx, yx, cx, D);
+        hx2, eigenvalue_psi_mod_h2, rx2, eigenvalue_psi_mod_r := G2_cofactor_clearing(qx, rx, tx, yx, tex, yex, h2x, D, k);
+    end for;
+end procedure;
+
+procedure test_fm()
+    printf "Fotiadis Martindale\n";
+    for code in [1, 10, 17, 19, 20, 25, 26] do
+        printf "FM-%o\n", code;
+        r_fm, t_fm, q_fm, y_fm, c_fm, D, lamb_fm, k := get_fotiadis_martindale_polynomials(code);
+        printf "k = %o\nD = %o\nq = %o\nt = %o\nr = %o\nc = %o\ny = %o\n", k, D, q_fm, t_fm, r_fm, c_fm, y_fm;
+        polys_cofact_twists, label_factors := poly_cofactor_twist_g1_g2(k, q_fm, r_fm, t_fm, c_fm, y_fm, D);
+        c_fm, tw_fm, h2_fm, g2tw_fm, te_fm, ye_fm := Explode(polys_cofact_twists);
+        c_fm1, eigenvalue_phi_mod_c, r_fm1, eigenvalue_phi_mod_r := G1_cofactor_clearing(q_fm, r_fm, t_fm, y_fm, c_fm, D);
+        h_fm2, eigenvalue_psi_mod_h2, r_fm2, eigenvalue_psi_mod_r := G2_cofactor_clearing(q_fm, r_fm, t_fm, y_fm, te_fm, ye_fm, h2_fm, D, k);
+    end for;
+    printf "test fm done\n";
+end procedure;
+
+procedure test_bn()
+    printf "BN\n";
+    r_bn, t_bn, q_bn, y_bn, c_bn, D, eigenvalue_phi_bn := get_bn_polynomials();
+    k := 12;
+    polys_cofact_twists, label_factors := poly_cofactor_twist_g1_g2(k, q_bn, r_bn, t_bn, c_bn, y_bn, D);
+    c_bn, tw_bn, h2_bn, g2_tw_bn, te_bn, ye_bn := Explode(polys_cofact_twists);
+    assert c_bn eq 1;
+    assert tw_bn eq q_bn + 1 + t_bn;
+    cx1, eigenvalue_phi_mod_c, rx1, eigenvalue_phi_mod_r := G1_cofactor_clearing(q_bn, r_bn, t_bn, y_bn, c_bn, D);
+    hx2, eigenvalue_psi_mod_h2, rx2, eigenvalue_psi_mod_r := G2_cofactor_clearing(q_bn, r_bn, t_bn, y_bn, te_bn, ye_bn, h2_bn, D, k);
+    printf "test bn done\n";
+end procedure;
+
+procedure test_bls()
+    printf "\nBLS\n\n";
+    for k := 3 to 54 by 3 do
+        if (k mod 18) ne 0 then
+            printf "BLS-%o\n", k;
+            r_bls, t_bls, q_bls, y_bls, c_bls, D, eigenvalue_phi_bls := get_bls_polynomials(k);
+            polys_cofact_twists, label_factors := poly_cofactor_twist_g1_g2(k, q_bls, r_bls, t_bls, c_bls, y_bls, D);
+            c_bls, tw_bls, c2_bls, g2_tw_bls, te_bls, ye_bls := Explode(polys_cofact_twists);
+            assert c_bls * r_bls eq q_bls + 1 - t_bls;
+            assert tw_bls eq q_bls + 1 + t_bls;
+            cx1, eigenvalue_phi_mod_c, rx1, eigenvalue_phi_mod_r := G1_cofactor_clearing(q_bls, r_bls, t_bls, y_bls, c_bls, D);
+            //assert (c_bls mod (x-1)^2/3) eq 0;
+            cx1, cx0 := Quotrem(c_bls, (x-1)^2/3);
+            printf "cx = (x-1)^2/3 * (%o) + (%o)\n", cx1, cx0;
+        end if;
+    end for;
+    printf "test bls done\n";
+end procedure;
+
+procedure test_kss()
+    printf "\nKSS\n\n";
+    for k in [8, 16, 18, 32, 36, 40, 54] do
+        r_kss, t_kss, q_kss, y_kss, c_kss, D, eigenvalue_phi_kss := get_kss_polynomials(k);
+        printf "KSS-%o D=%o\n", k, D;
+        lc := LeadingCoefficient(q_kss-1);
+        lcn := Numerator(lc);
+        lcd := Denominator(lc);
+        printf "q(x)-1 = %o/%o * (%o)\n", lcn, lcd, (q_kss-1)/lc;
+        printf "q(x)-1 = %o/%o * (%o)\n", Factorization(lcn), Factorization(lcd), Factorization(q_kss-1);
+        polys_cofact_twists, label_factors := poly_cofactor_twist_g1_g2(k, q_kss, r_kss, t_kss, c_kss, y_kss, D);
+        c_kss, tw_kss, c2_kss, g2_tw_kss, te_kss, ye_kss := Explode(polys_cofact_twists);
+        assert c_kss * r_kss eq q_kss + 1 - t_kss;
+        assert tw_kss eq q_kss + 1 + t_kss;
+        cx1, eigenvalue_phi_mod_c, rx1, eigenvalue_phi_mod_r := G1_cofactor_clearing(q_kss, r_kss, t_kss, y_kss, c_kss, D);
+        lc1 := LeadingCoefficient(cx1);
+        printf "cx1 = %o = %o * (%o)\n", cx1, lc1, cx1/lc1;
+    end for;
+    printf "test kss done\n";
+end procedure;
+
+procedure adjust_eigenvalues_kss(k)
+    assert k eq 16 or k eq 18;
+    r_kss, t_kss, q_kss, y_kss, c_kss, D, eigenvalue_phi_kss := get_kss_polynomials(k);
+    lx := eigenvalue_phi_kss;
+    if (D mod 4) eq 3 then
+	assert ((eigenvalue_phi_kss^2 + eigenvalue_phi_kss + ((D+1) div 4)) mod r_kss) eq 0;
+	A := [(D+1)/4, lx+1];
+    else
+	assert ((eigenvalue_phi_kss^2 + D) mod r_kss) eq 0;
+	A := [D, lx];
+    end if;
+    B := [-lx, 1];
+    order_E := q_kss + 1 - t_kss;
+    if k eq 18 then
+	u_mod_m := 14;
+	m := 21;
+	Max := 343;
+	target_g := 343;
+    elif k eq 16 then
+	u_mod_m := 25;
+	m := 70;
+	Max := 1250;
+	target_g := 1250;
+    end if;
+
+    min_ij := 2*Max;
+    list_best_ij := [];
+    assert ((A[1] + A[2]*lx) mod r_kss) eq 0;
+    assert ((B[1] + B[2]*lx) mod r_kss) eq 0;
+    for i := -Max to Max do
+	for j := -Max to Max do
+	    if i eq 0 or j eq 0 or Gcd(i, j) ne 1 then
+		continue;
+	    end if;
+	    La := i*A[1] + j*B[1];
+	    Lb := i*A[2] + j*B[2];
+	    gi := Gcd([ZZ ! ci: ci in Eltseq(Evaluate(La, u_mod_m + m*x))]);
+	    gj := Gcd([ZZ ! ci: ci in Eltseq(Evaluate(Lb, u_mod_m + m*x))]);
+	    g := Gcd(gi, gj);
+	    if g ge target_g and Abs(i) + Abs(j) le min_ij then
+		printf "Gcd(%o(%o) + %o(%o), %o(%o) + %o(%o)) = %o (b0 + b1*l = %o r, content: %o, %o)\n", i, A[1], j, B[1], i, A[2], j, B[2], g, (La/g + Lb/g*lx) div r_kss, gi, gj;
+		new_min_ij := Abs(i) + Abs(j);
+		if new_min_ij lt min_ij then // erase
+		    list_best_ij := [[i, j]];
+		    min_ij := new_min_ij;
+		else
+		    Append(~list_best_ij, [i,j]);
+		end if;
+	    end if;
+	end for;
+    end for;
+    // 1*A + 18*B
+    for best_ij in list_best_ij do
+	i := best_ij[1];
+	j := best_ij[2];
+	a0 := (i*A[1] + j*B[1])/target_g;
+	a1 := (i*A[2] + j*B[2])/target_g;
+	printf "a0 = %o\na1 = %o\n", a0, a1;
+	printf "a0 + a1*lambda = %o = %o*r\n", a0 + a1*lx, (a0 + a1*lx) div r_kss;
+    end for;
+end procedure;
+
+//test_fm();
+//test_aurifeuillean();
+//test_bn();
+//test_bls();
+//test_kss();
+for k in [16, 18] do
+    adjust_eigenvalues_kss(k);
+end for;
+
+// compute the short vectors for
+// 1a. co-factor clearing in G1: that is, multiplication by the cofactor c with the GLV method where the endomorphism is phi
+// 1b. subgroup membership testing in G1: that is, multiplication by r with the GLV method where the endomorphism is phi
+// 2a. co-factor clearing in G2: that is, multiplication by the cofactor c2 with the GLV method where the endomorphism is psi
+// 2b. subgroup membership testing in G2: that is, multiplication by r with the GLV method, where the endomorphism is psi
+// 3a. co-factor clearing in GT: that is, multiplication by the cofactor (Phi_k(p)/r) with the GLV method where the endomorphism is the Frobenius pi_p
+// 3b. subgroup membership testing in GT: that is, multiplication by r with the GLV method, where the endomorphism is the Frobenius pi_p

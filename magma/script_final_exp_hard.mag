@@ -1,0 +1,1051 @@
+// script to run the decomposition of the final exponentiation hard part
+load "final_exp_hard.mag";
+
+printf "FM15\n";
+k:=15;
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_fm22_k15_polynomials();
+printf "rx := %o;\n", rx;
+printf "tx := %o;\n", tx;
+printf "qx := %o;\n", qx;
+printf "yx := %o;\n", yx;
+printf "cx := %o;\n", cx;
+printf "lambrx := %o;\n", lambrx;
+printf "lambcx := %o;\n", lambcx;
+printf "g2cx := %o;\n", g2cx;
+printf "txe := %o;\n", txe;
+printf "yxe := %o;\n", yxe;
+printf "D = %o\nk = %o\n", D, k;
+L, Lx, L_uq := final_exp_hard_HHT(k, rx, tx, qx);
+L;
+Factorization(L_uq);
+
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+Tx := tx-1;
+Phi_k := CyclotomicPolynomial(k);
+h2x := Evaluate(Phi_k, Tx) div rx;
+exponent_x := (qx^8 - qx^7 + qx^5 - qx^4 + qx^3 - qx + 1) div rx;
+
+assert ((exponent_x - h2x) mod cx) eq 0;
+e0x := ((exponent_x - h2x) div cx); // irreducible
+exponent_x eq cx*e0x + h2x;
+printf "cx = %o = %o\n", cx, Factorization(cx);
+printf "h2x = %o = %o\n", h2x, Factorization(h2x);
+printf "e0x = %o = %o\n", e0x, Factorization(e0x);
+Rx := Parent(rx);
+R, degrees := compute_lll_matrix_poly(exponent_x, qx, EulerPhi(k), Rx);
+
+printf "BLS15\n";
+k:=15;
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+printf "rx := %o;\n", rx;
+printf "tx := %o;\n", tx;
+printf "qx := %o;\n", qx;
+printf "yx := %o;\n", yx;
+printf "cx := %o;\n", cx;
+printf "lambrx := %o;\n", lambrx;
+printf "lambcx := %o;\n", lambcx;
+printf "g2cx := %o;\n", g2cx;
+printf "txe := %o;\n", txe;
+printf "yxe := %o;\n", yxe;
+printf "D = %o\nk = %o\n", D, k;
+L, Lx, L_uq := final_exp_hard_HHT(k, rx, tx, qx);
+L;
+Factorization(L_uq);
+/*[
+    x^7 - x^6 + x^4 - x^3 + x^2 - 1,
+    x^6 - x^5 + x^3 - x^2 + x,
+    x^5 - x^4 + x^2 - x + 1,
+    x^4 - x^3 + x - 1,
+    x^3 - x^2 + 1,
+    x^2 - x,
+    x - 1,
+    1
+]*/
+l0 := x^7 - x^6 + x^4 - x^3 + x^2 - 1;
+l1 := x^6 - x^5 + x^3 - x^2 + x;
+l2 := x^5 - x^4 + x^2 - x + 1;
+l3 := x^4 - x^3 + x - 1;
+l4 := x^3 - x^2 + 1;
+l5 := x^2 - x;
+l6 := x - 1;
+l7 := 1;
+
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+Tx := tx-1;
+Phi_k := CyclotomicPolynomial(k);
+h2x := Evaluate(Phi_k, Tx) div rx;
+exponent_x := (qx^8 - qx^7 + qx^5 - qx^4 + qx^3 - qx + 1) div rx;
+
+assert exponent_x eq cx * (l7*qx^7 + l6*qx^6 + l5*qx^5 + l4*qx^4 + l3*qx^3 + l2*qx^2 + l1*qx + l0) + 1;
+
+assert ((exponent_x - h2x) mod cx) eq 0;
+e0x := ((exponent_x - h2x) div cx); // irreducible
+exponent_x eq cx*e0x + h2x;
+printf "cx = %o = %o\n", cx, Factorization(cx);
+printf "h2x = %o = %o\n", h2x, Factorization(h2x);
+printf "e0x = %o = %o\n", e0x, Factorization(e0x);
+Rx := Parent(rx);
+R, degrees := compute_lll_matrix_poly(exponent_x, qx, EulerPhi(k), Rx);
+
+k := 22;
+rx, tx, qx, yx, cx, eigenvalue_phi, D, k := get_fst66_polynomials(k);
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+Tx := tx-1;
+Phi_k := CyclotomicPolynomial(k);
+h2x := Evaluate(Phi_k, Tx) div rx;
+exponent_x := (qx^10 - qx^9 + qx^8 - qx^7 + qx^6 - qx^5 + qx^4 - qx^3 + qx^2 - qx + 1) div rx;
+assert ((exponent_x - h2x) mod cx) eq 0;
+e0x := ((exponent_x - h2x) div cx); // irreducible
+exponent_x eq cx*e0x + h2x;
+
+L, Lx, L_uq := final_exp_hard_HHT(k, rx, tx, qx);
+Factorization(L_uq);
+//u^27 + u^24*q - u^24 + u^21*q^2 - u^21*q + u^21 + u^18*q^3 - u^18*q^2 + u^18*q - u^18 + u^15*q^4 - u^15*q^3 + u^15*q^2 - u^15*q + u^15 + u^12*q^5 - u^12*q^4 + u^12*q^3 - u^12*q^2 + u^12*q - u^12 + u^9*q^6 - u^9*q^5 + u^9*q^4 - u^9*q^3 + u^9*q^2 - u^9*q + u^9 + u^6*q^7 - u^6*q^6 + u^6*q^5 - u^6*q^4 + u^6*q^3 - u^6*q^2 + u^6*q - u^6 + u^3*q^8 - u^3*q^7 + u^3*q^6 - u^3*q^5 + u^3*q^4 - u^3*q^3 + u^3*q^2 - u^3*q + u^3 + q^9 - q^8 + q^7 - q^6 + q^5 - q^4 + q^3 - q^2 + q - 1
+Rx := Parent(rx);
+R, degrees := compute_lll_matrix_poly(exponent_x, qx, EulerPhi(k), Rx);
+
+
+k := 20;
+rx, tx, qx, yx, cx, eigenvalue_phi, D, k := get_fst66_polynomials(k);
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+Tx := tx-1;
+Phi_k := CyclotomicPolynomial(k);
+h2x := Evaluate(Phi_k, Tx) div rx;
+
+exponent_x := (qx^8 - qx^6 + qx^4 - qx^2 + 1) div rx;
+assert ((exponent_x - h2x) mod cx) eq 0;
+e0x := ((exponent_x - h2x) div cx) div (qx + tx - 1);
+exponent_x eq (qx + tx - 1)*cx*e0x + h2x;
+
+L, Lx, L_uq := final_exp_hard_HHT(k, rx, tx, qx);
+Factorization(L_uq);
+
+e0x eq (x^66 - 6*x^56 + 15*x^46 + x^44*qx^2 - x^44 - 20*x^36 - 4*x^34*qx^2 + 4*x^34 + 15*x^26 + 6*x^24*qx^2 - 6*x^24 + x^22*qx^4 - x^22*qx^2 + x^22 - 6*x^16 - 4*x^14*qx^2 + 4*x^14 - 2*x^12*qx^4 + 2*x^12*qx^2 - 2*x^12 + x^6 + x^4*qx^2 - x^4 + x^2*qx^4 - x^2*qx^2 + x^2 + qx^6 - qx^4 + qx^2 - 1);
+
+Rx := Parent(rx);
+R, degrees := compute_lll_matrix_poly(exponent_x, qx, EulerPhi(k), Rx);
+//R, degrees := compute_lll_matrix_poly(h2x, qx, EulerPhi(k), Rx);
+//R, degrees := compute_lll_matrix_poly(e0x, qx, EulerPhi(k), Rx);
+// (-3*x^7 + 3*x^3 + 3*x)*Phi_20(q)/r =
+//    (x^20 + x^19 + x^18 + 3*x^9 + x^2 + x + 1) + (-x^19 - x^18 - x^17 - x^11 - x^10 - 2*x^8 + x^7 - 3)*q^1 + (-x^8 - x^7 - x^6 - x^2 - x - 1)*q^2 + (x^17 + x^16 + x^15 + x^11 + x^10 + x^9 + 3*x^6 + 3)*q^3 + (-x^16 - x^15 - x^14 + x^6 - 2*x^5 + x^4 + x^2 + x + 1)*q^4 + (-x^11 - x^10 - x^9 - x^5 - x^4 - x^3 - 3)*q^5 + (x^14 + x^13 + x^12 + 3*x^3 - x^2 - x - 1)*q^6 + (-x^13 - x^12 + x^10 + x^9 + x^3 - 2*x^2 + x + 3)*q^7
+l := 8;
+c0 := R[l][1];
+c1 := R[l][2];
+c2 := R[l][3];
+c3 := R[l][4];
+c4 := R[l][5];
+c5 := R[l][6];
+c6 := R[l][7];
+c7 := R[l][8];
+//x^20 + x^19 + x^18 + 3*x^9 + x^2 + x + 1
+//-x^19 - x^18 - x^17 - x^11 - x^10 - 2*x^8 + x^7 - 3
+//-x^8 - x^7 - x^6 - x^2 - x - 1
+//x^17 + x^16 + x^15 + x^11 + x^10 + x^9 + 3*x^6 + 3
+//-x^16 - x^15 - x^14 + x^6 - 2*x^5 + x^4 + x^2 + x + 1
+//-x^11 - x^10 - x^9 - x^5 - x^4 - x^3 - 3
+//x^14 + x^13 + x^12 + 3*x^3 - x^2 - x - 1
+//-x^13 - x^12 + x^10 + x^9 + x^3 - 2*x^2 + x + 3
+Quotrem(c0, c2); c0 eq (-x^12 + x^6 - 3*x + 2)*c2 + (3*x^6 - 3*x^3 + 3);
+Quotrem(c1, c2); c1 eq (x^11 - x^5 + x^3 - x + 3)*c2 + 2*x^7 + 2*x^6 + x^4 + 2*x^2 + 2*x;
+Quotrem(c3, c2); c3 eq (-x^9)*c2 + 3*x^6 + 3;
+Quotrem(c4, c2); c4 eq x^2*(x^6 - 1)*c2 + x^6 - 2*x^5 - x^3 + x + 1;
+Quotrem(c5, c2); c5 eq (x^3)*c2 - 3;
+Quotrem(c6, c2); c6 eq -(x^6 - 1)*c2 + 3*x^3;
+Quotrem(c7, c2); c7 eq (x^5 - x^3)*c2+ x^7 + x^6 - x^4 - 2*x^2 + x + 3;
+
+Quotrem(c0, c5);
+Quotrem(c1, c5);
+Quotrem(c2, c5);
+Quotrem(c3, c5);
+Quotrem(c4, c5);
+Quotrem(c6, c5);
+Quotrem(c7, c5);
+
+c5 eq -x^11 - x^10 - x^9 - x^5 - x^4 - x^3 - 3;
+
+c0 eq (-x^9 + x^3)*c5    + (x^8 + x^7 + x^6 + 3*x^3 + x^2 + x + 1);
+c1 eq (x^8 - x^2 + 1)*c5 + (x^9 + x^8 - x^6 + x^4 + x^3 - 3*x^2);
+c2 eq (0)*c5             - (x^8 + x^7 + x^6 + x^2 + x + 1);
+c3 eq (-x^6)*c5          + 3;
+c4 eq (x^5)*c5           + (x^10 + x^9 + x^8 + x^6 + x^5 + x^4 + x^2 + x + 1);
+c6 eq (-x^3)*c5          + (-x^8 - x^7 - x^6 - x^2 - x - 1);
+c7 eq (x^2 - 1)*c5       + (x^7 + x^6 - x^4 + x^2 + x);
+
+c0 eq (-x^9 + x^3)*c5    - c2 + 3*x^3;
+c1 eq (x^8 - x^2 + 1)*c5 - x*c2 - (x^7 + x^6 - x^4 + 4*x^2 + x);
+c2 eq (0)*c5             + c2;
+c3 eq (-x^6)*c5          + 3;
+c4 eq (x^5)*c5           - c2*x^2 + (x^6 + x^5 - x^3 + x + 1);
+c6 eq (-x^3)*c5          + c2;
+c7 eq (x^2 - 1)*c5       + (x^7 + x^6 - x^4 + x^2 + x);
+
+a0 := x^6 + x^5 - x^3 + x + 1;
+a1 := x * a0;
+a2 := a1 + 3*x^2;
+
+c5 eq -x^11 - x^10 - x^9 - x^5 - x^4 - x^3 - 3;
+c2 eq -x^8 - x^7 - x^6 - x^2 - x - 1;
+c2 eq -(x^2+1)*a0;
+c5 eq x^3*c2 - 3;
+
+c0 eq (-x^9 + x^3)*c5    - c2 + 3*x^3;
+c1 eq (x^8 - x^2 + 1)*c5 - x*c2 - a2;
+c2 eq (0)*c5             + c2;
+c3 eq (-x^6)*c5          + 3;
+c4 eq (x^5)*c5           - c2*x^2 + a0;
+c6 eq (-x^3)*c5          + c2;
+c7 eq (x^2 - 1)*c5       + a1;
+
+(c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5 + c6*qx^6 + c7*qx^7) eq (-3*x^7 + 3*x^3 + 3*x)*exponent_x;
+((-x^9 + x^3)*c5 - c2 + 3*x^3 + ((x^8 - x^2 + 1)*c5 - x*c2 - a2)*qx + c2*qx^2 + ((-x^6)*c5 + 3)*qx^3 + ((x^5)*c5 - c2*x^2 + a0)*qx^4 + c5*qx^5 + ((-x^3)*c5 + c2)*qx^6 + ((x^2 - 1)*c5 + a1)*qx^7) eq (-3*x^7 + 3*x^3 + 3*x)*exponent_x;
+
+((-x^9 + x^3 + (x^8 - x^2 + 1)*qx -x^6*qx^3 +x^5*qx^4 + qx^5 -x^3*qx^6 + (x^2 - 1)*qx^7)*c5 - c2 + 3*x^3 + (-x*c2 - a2)*qx + c2*qx^2 + 3*qx^3 + (- c2*x^2 + a0)*qx^4 + c2*qx^6 + a1*qx^7) eq (-3*x^7 + 3*x^3 + 3*x)*exponent_x;
+
+((- x^2*(x - qx)*(x^3*(x^3 + qx^3) + qx^6 - 1) - qx*(qx^6 - qx^4 - 1))*c5 \
+ + (1 + x*qx - qx^2 + (x^2 - qx^2)*qx^4)*(-c2) + a0*(x*(-1 + qx^6) + qx^3)*qx + 3*(x^3 - x^2*qx + qx^3)) \
+eq (-3*x^7 + 3*x^3 + 3*x)*exponent_x;
+
+u1 := x;
+u2 := x^2;
+u3 := x^3;
+u4 := x^4;
+u5 := x^5;
+u6 := x^6;
+e0 := 3*(u3 + (-u2 + qx^2)*qx);
+e0 eq 3*(x^3 - x^2*qx + qx^3);
+a0 := u6 + u5 - u3 + u1 + 1;
+a1 := x*a0;
+e1 := a1*qx*(qx^6-1) + a0*qx^4;
+e1 eq a0*(-x*qx + qx^4 + x*qx^7);
+a2 := x*a1 + a0;
+a2 eq -c2;
+a3 := x*a2;
+a4 := x*a3;
+e2 := a2 + a3*qx - a2*qx^2 + (a4 - a2*qx^2)*qx^4;
+e2 eq (1 + x*qx - qx^2 + (x^2 - qx^2)*qx^4)*(-c2);
+a5 := -x*a4 - 3;
+a5 eq c5;
+a6 := a5*qx^6 - a5;
+a7 := (a6 - a5*qx^4)*qx;
+a7 eq qx*(qx^6 - qx^4 - 1)*c5;
+a8 := a6 + a5*x^3*(x^3 + qx^3);
+a9 := a8*x - a8*qx;
+a10 := -x^2*a9;
+(a10 - a7) eq (- x^2*(x - qx)*(x^3*(x^3 + qx^3) + qx^6 - 1) - qx*(qx^6 - qx^4 - 1))*c5;
+
+/*
+k := 20;
+rx, tx, qx, yx, cx, eigenvalue_phi, D, k := get_fst64_polynomials(k);
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+
+l := 8;
+c0 := R[l][1];
+c1 := R[l][2];
+c2 := R[l][3];
+c3 := R[l][4];
+c4 := R[l][5];
+c5 := R[l][6];
+c6 := R[l][7];
+c7 := R[l][8];
+
+printf "%o %o %o %o %o %o %o %o\n", Degree(c0), Degree(c1), Degree(c2), Degree(c3), Degree(c4), Degree(c5), Degree(c6), Degree(c7);
+Quotrem(c0, c7); c0 eq (x^7 - x^5 + x^3 - x)*c7 + 4;
+Quotrem(c1, c7); c1 eq (x^6 - x^4 + x^2 - 1)*c7;
+Quotrem(c2, c7); c2 eq (x^5 - x^3 + x)*c7;
+Quotrem(c3, c7); c3 eq (x^4 - x^2 + 1)*c7;
+Quotrem(c4, c7); c4 eq (x^3 - x)*c7;
+Quotrem(c5, c7); c5 eq (x^2 - 1)*c7;
+Quotrem(c6, c7); c6 eq x*c7;
+
+4*exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5 + c6*qx^6 + c7*qx^7);
+4*exponent eq (c7*(qx^7 + x*qx^6 + (x^2-1)*qx^5 + (x^3-x)*qx^4 + (x^4-x^2+1)*qx^3 + (x^5-x^3+x)*qx^2 + (x^6-x^4+x^2-1)*qx + (x^7 - x^5 + x^3 - x)) + 4);
+c7 eq (x-1)^2*(x^2+1);
+
+QQqt<q,u> := PolynomialRing(QQ, 2);
+Factorization(q^7 + u*q^6 + (u^2-1)*q^5 + (u^3-u)*q^4 + (u^4-u^2+1)*q^3 + (u^5-u^3+u)*q^2 + (u^6-u^4+u^2-1)*q + (u^7 - u^5 + u^3 - u));
+
+e_qu := (q^6 + (u^2-1)*q^4 + (u^4-u^2+1)*q^2 + (u^2-1)*(u^4+1));
+
+Factorization(q^6 + q^4*u^2 + q^2*u^4 + u^6); Factorization(-q^4 - q^2*u^2 -u^4); Factorization(q^2 + u^2 - 1);
+e_qu eq (q^2 + u^2)*(q^4 + u^4) - (q^4 + u^4 + q^2*u^2) + (q^2 + u^2 - 1);
+e_qu eq (q^2 + u^2 - 1)*(q^4 + u^4 + 1) - q^2*u^2;
+
+exponent eq (x-1)^2 / 4 * (x^2+1) * (qx + x) * (qx^6 + (x^2-1)*qx^4 + (x^4-x^2+1)*qx^2 + (x^2-1)*(x^4+1)) + 1;
+exponent eq (x-1)^2 / 4 * (x^2+1) * (qx + x) * ((x^2-1 + qx^2)*(qx^4 + (x^4+1)) -x^2*qx^2) + 1;
+exponent eq (x-1)^2 / 4 * (x^2+1) * (qx + x) * ((qx^2 + x^2 - 1)*(qx^4 + x^4 + 1) -x^2*qx^2) + 1;
+
+exponent eq (x-1)^2 / 4 * (x^2+1) * (qx + x) * ((x^2-1 + qx^2)*(qx^4 + (x^4-x^2+1)) + (x^4-x^2)) + 1;
+
+exponent eq (x-1)^2 / 4 * (x^2+1) * (qx + x) * (qx^2*(x^4+qx^4) + (x^2-1)*(qx^4+x^4-qx^2+1) ) + 1;
+exponent eq (x-1)^2 / 4 * (x^2+1) * (qx + x) * ((qx^2+x^2-1)*(x^4+qx^4) + (x^2-1)*(-qx^2+1)) + 1;
+*/
+
+/*
+rx, tx, qx, yx, cx, lambrx, lambc0x, g2cx, txe, yxe, D, k := get_afg_k16_polynomials();
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+
+l := 4;
+c0 := R[l][1];
+c1 := R[l][2];
+c2 := R[l][3];
+c3 := R[l][4];
+c4 := R[l][5];
+c5 := R[l][6];
+c6 := R[l][7];
+c7 := R[l][8];
+
+printf "%o %o %o %o %o %o %o %o\n", Degree(c0), Degree(c1), Degree(c2), Degree(c3), Degree(c4), Degree(c5), Degree(c6), Degree(c7);
+
+Quotrem(c0, c7); c0 eq x^3*c7 -4;
+Quotrem(c1, c7); c1 eq -x^6*c7 + 4*x^3;
+Quotrem(c2, c7); c2 eq -x*c7;
+Quotrem(c3, c7); c3 eq x^4*c7 -4*x;
+Quotrem(c4, c7); c4 eq -x^7*c7 + 4*x^4;
+Quotrem(c5, c7); c5 eq -x^2*c7;
+Quotrem(c6, c7); c6 eq x^5*c7 -4*x^2;
+
+-4*exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5 + c6*qx^6 + c7*qx^7);
+-4*exponent eq (x^3*c7 -4 + (-x^6*c7 + 4*x^3)*qx + (-x*c7)*qx^2 + (x^4*c7 -4*x)*qx^3 + (-x^7*c7 + 4*x^4)*qx^4 + (-x^2*c7)*qx^5 + (x^5*c7 -4*x^2)*qx^6 + c7*qx^7);
+-4*exponent eq c7*(x^3 - x^6*qx - x*qx^2 + x^4*qx^3 - x^7*qx^4 - x^2*qx^5 + x^5*qx^6 + qx^7) + (- 4 + 4*x^3*qx - 4*x*qx^3 + 4*x^4*qx^4 - 4*x^2*qx^6);
+QQtq<t,q> := PolynomialRing(QQ, 2);
+Factorization(t^3 - t^6*q - t*q^2 + t^4*q^3 - t^7*q^4 - t^2*q^5 + t^5*q^6 + q^7);
+assert (t^3 - t^6*q - t*q^2 + t^4*q^3 - t^7*q^4 - t^2*q^5 + t^5*q^6 + q^7) eq (q^2 - t^2)*(t^5*q^4 + t^4*q - t + q^5);
+Factorization(-4 + 4*t^3*q - 4*t*q^3 + 4*t^4*q^4 - 4*t^2*q^6);
+(-4 + 4*t^3*q - 4*t*q^3 + 4*t^4*q^4 - 4*t^2*q^6) eq -4 * ((t*q) * (q^2-t^2) * (1 + t*q^3) + 1);
+-4*exponent eq c7 * (qx^2 - x^2)*(x^5*qx^4 + x^4*qx - x + qx^5) - 4 * ((x*qx) * (qx^2-x^2) * (1 + x*qx^3) + 1);
+-4*exponent eq ((qx^2-x^2) * (c7 * (x^5*qx^4 + x^4*qx - x + qx^5) - 4*x * qx * (1 + x*qx^3)) - 4);
+4*exponent eq ((qx^2-x^2) * ((x^8 + 2*x^5 + x^2 + 4) * (x^5*qx^4 + x^4*qx - x + qx^5) + 4*x * qx * (1 + x*qx^3)) + 4);
+exponent eq (qx^2-x^2) * ((x^8 + 2*x^5 + x^2 + 4)/4 * (x^5*qx^4 + x^4*qx - x + qx^5) + x*qx * (1 + x*qx^3)) + 1;
+exponent eq (qx^2-x^2) * ((x^2/4*(x^3 + 1)^2 +1) * (qx^5 - x + x^3 * x*qx*(1 + x*qx^3)) + x*qx * (1 + x*qx^3)) + 1;
+
+exponent eq (qx^2-x^2) * ((x^2/4*(x^3 + 1)^2 +1) * (qx^5 + x*(-1 + x^2 * x*qx*(1 + x*qx^3))) + x*qx * (1 + x*qx^3)) + 1;
+*/
+/*
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_fm25_k18_polynomials();
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+
+c5, rem := Quotrem(exponent, qx^5);
+c4, rem := Quotrem(rem, qx^4);
+c3, rem := Quotrem(rem, qx^3);
+c2, rem := Quotrem(rem, qx^2);
+c1, c0 := Quotrem(rem, qx);
+
+Quotrem(c4, c5); c4 eq -x^4*c5 + x^2;
+Quotrem(c3, c5); c3 eq (x^5 - x^2)*c5 -x^3;
+Quotrem(c2, c5); c2 eq (x^3 - 1)*c5 -x;
+Quotrem(c1, c5); c1 eq x*c5;
+Quotrem(c0, c5); c0 eq -x^5*c5 + x^3 + 1;
+
+exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5);
+exponent eq (-x^5*c5 + x^3+1 + x*c5*qx + ((x^3-1)*c5 -x)*qx^2 + ((x^5 - x^2)*c5 -x^3)*qx^3 + (-x^4*c5 + x^2)*qx^4 + c5*qx^5);
+exponent eq (c5*(-x^5 + x*qx + (x^3-1)*qx^2 + (x^5 - x^2)*qx^3 - x^4*qx^4 + qx^5)  + x^3+1 -x*qx^2 -x^3*qx^3 + x^2*qx^4);
+
+exponent eq ((3*x^6 + x^2 - 2*x + 4)/3*(-x^5 + x*qx + (x^3-1)*qx^2 + (x^5 - x^2)*qx^3 - x^4*qx^4 + qx^5)  + x^3+1 -x*qx^2 -x^3*qx^3 + x^2*qx^4);
+
+QQqt<q,u> := PolynomialRing(QQ, 2);
+
+e_qu := (-u^5 + u*q + (u^3-1)*q^2 + (u^5 - u^2)*q^3 - u^4*q^4 + q^5);
+Factorization(e_qu);
+e_qu eq (q-u) * (q^4 + q^3*u + q*u^3 + u^4 - q^3*u^4 - q);
+Factorization(q^4 + q^3*u + q*u^3 + u^4);
+e_qu eq (q-u) * ((q + u)^2 * (q^2 - q*u + u^2) - q * (q^2*u^4 + 1));
+
+Factorization(q^3*u + q*u^3 + u^4 - q^3*u^4);
+
+e2_qu := u^3 + 1 -u*q^2 -u^3*q^3 + u^2*q^4;
+Factorization(e2_qu-1);
+e2_qu eq u * (q-u) * (q^3*u - q - u) + 1;
+
+exponent eq ((3*x^6 + x^2 - 2*x + 4)/3*(qx - x)*(qx^4 + qx^3*x + qx*x^3 + x^4 - qx^3*x^4 - qx) + x * (qx-x) * (qx^3*x - qx - x)) + 1;
+exponent eq (qx - x)*((3*x^6 + x^2 - 2*x + 4)/3*(qx^4 - qx^3*x^4 + qx*x^3 + x^4 + qx^3*x - qx) + x * (qx^3*x - qx - x)) + 1;
+exponent eq (qx - x)*((3*x^6 + x^2 - 2*x + 4)/3*(qx^4 + qx^3*x - qx - x^3*(qx^3*x - qx - x)) + x * (qx^3*x - qx - x)) + 1;
+
+
+l := 1;
+c0 := R[l][1];
+c1 := R[l][2];
+c2 := R[l][3];
+c3 := R[l][4];
+c4 := R[l][5];
+c5 := R[l][6];
+
+printf "%o %o %o %o %o %o\n", Degree(c0), Degree(c1), Degree(c2), Degree(c3), Degree(c4), Degree(c5);
+Quotrem(c0, c4); c0 eq (x)*c4;
+Quotrem(c1, c4); c1 eq (x^3-1)*c4 -x;
+Quotrem(c2, c4); c2 eq (-x^2)*c4 +1;
+Quotrem(c3, c4); c3 eq (-x^4)*c4 + x^2;
+Quotrem(c5, c4); c5 eq (x^5)*c4 -x^3-1;
+
+x^5*exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5);
+x^5*exponent eq (x*c4 + ((x^3-1)*c4 -x)*qx + ((-x^2)*c4 +1)*qx^2 + ((-x^4)*c4 + x^2)*qx^3 + c4*qx^4 + ((x^5)*c4 -x^3-1)*qx^5);
+
+x^5*exponent eq (c4 * (x + (x^3-1)*qx - x^2*qx^2 - x^4*qx^3 + qx^4 + x^5*qx^5) -x*qx + qx^2 + x^2*qx^3 - (x^3+1)*qx^5);
+Factorization(c4);
+
+x^5*exponent eq ((3*x^6 + x^2 - 2*x + 4) * (x + (x^3-1)*qx - x^2*qx^2 - x^4*qx^3 + qx^4 + x^5*qx^5) -x*qx + qx^2 + x^2*qx^3 - (x^3+1)*qx^5);
+
+QQqt<q,u> := PolynomialRing(QQ, 2);
+
+Factorization(u + (u^3-1)*q - u^2*q^2 - u^4*q^3 + q^4 + u^5*q^5);
+Factorization(u-q + u^3*q - u^2*q^2 - u^4*q^3 + q^4 + u^5*q^5);
+
+Factorization(- u^2*q^2 - u^4*q^3 + u^5*q^5); // q^2 * u^2 *(q^3*u^3 - q*u^2 - 1)
+
+Factorization(-u*q + q^2 + u^2*q^3 - (u^3+1)*q^5);
+*/
+
+/*
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18_polynomials(:exp_trace:=1);
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+
+EulerPhi(18);
+c5, rem := Quotrem(exponent, qx^5);
+c4, rem := Quotrem(rem, qx^4);
+c3, rem := Quotrem(rem, qx^3);
+c2, rem := Quotrem(rem, qx^2);
+c1, c0 := Quotrem(rem, qx);
+
+Quotrem(c4, c5); c4 eq (3*x^2)*c5 ;
+Quotrem(c3, c5); c3 eq (9*x^4)*c5 +1;
+Quotrem(c2, c5); c2 eq (-9*x^3-2)*c5 ;
+Quotrem(c1, c5); c1 eq (-27*x^5 - 6*x^2)*c5 -3*x;
+Quotrem(c0, c5); c0 eq (9*x^4 + 3*x)*c5 +1;
+
+exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5);
+exponent eq ((9*x^4 + 3*x)*c5 + 1 + ((-27*x^5 - 6*x^2)*c5 -3*x)*qx + (-9*x^3-2)*c5*qx^2 + (9*x^4*c5 +1)*qx^3 + 3*x^2*c5*qx^4 + c5*qx^5);
+
+exponent eq c5*((9*x^4+3*x) + (-27*x^5-6*x^2)*qx + (-9*x^3-2)*qx^2 + 9*x^4*qx^3 + 3*x^2*qx^4 + qx^5) + 1 - 3*x*qx + qx^3;
+c5 eq (3*x^2-1)^2;
+e1 := ((9*x^4+3*x) + (-27*x^5-6*x^2)*qx + (-9*x^3-2)*qx^2 + 9*x^4*qx^3 + 3*x^2*qx^4 + qx^5);
+e0 := (1 - 3*x*qx + qx^3);
+exponent eq (c5*e1 + e0);
+
+QQqt<q,u> := PolynomialRing(QQ, 2);
+e1_uq := ((9*u^4+3*u) + (-27*u^5-6*u^2)*q + (-9*u^3-2)*q^2 + 9*u^4*q^3 + 3*u^2*q^4 + q^5);
+e0_uq := 1 - 3*u*q + q^3;
+c5_uq := (3*u^2-1)^2;
+Evaluate(c5_uq, [qx, x]) eq c5;
+Evaluate(e1_uq, [qx, x]) eq e1;
+Evaluate(e0_uq, [qx, x]) eq e0;
+
+e_uq := c5_uq*e1_uq + e0_uq;
+Evaluate(e_uq, [qx, x]) eq exponent;
+
+Quotrem(e1_uq, e0_uq);
+e1_uq eq (q^2 + 3*q*u^2 + 9*u^4 + 3*u)*e0_uq -3*q^2;
+
+e_uq eq ((3*u^2-1)^2 * ((q^2 + 3*q*u^2 + 9*u^4 + 3*u)*(1 - 3*u*q + q^3) - 3*q^2) + (1 - 3*u*q + q^3));
+*/
+
+/*
+rx, tx, qx, yx, cx, eigenvalue_phi, eigenvalue_c0, g2cx, txe, yxe, D, k := get_fm23_k16_polynomials();
+
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+
+c7, rem := Quotrem(exponent, qx^7);
+c6, rem := Quotrem(rem, qx^6);
+c5, rem := Quotrem(rem, qx^5);
+c4, rem := Quotrem(rem, qx^4);
+c3, rem := Quotrem(rem, qx^3);
+c2, rem := Quotrem(rem, qx^2);
+c1, c0 := Quotrem(rem, qx);
+
+printf "%o %o %o %o %o %o %o %o\n", Degree(c0), Degree(c1), Degree(c2), Degree(c3), Degree(c4), Degree(c5), Degree(c6), Degree(c7);
+
+Quotrem(c0, c7); c0 eq (x^7)*c7+1;
+Quotrem(c1, c7); c1 eq (x^6)*c7 ;
+Quotrem(c2, c7); c2 eq (x^5)*c7 ;
+Quotrem(c3, c7); c3 eq (x^4)*c7 ;
+Quotrem(c4, c7); c4 eq (x^3)*c7 ;
+Quotrem(c5, c7); c5 eq (x^2)*c7 ;
+Quotrem(c6, c7); c6 eq (x)*c7 ;
+
+exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5 + c6*qx^6 + c7*qx^7);
+exponent eq (x^7 + x^6*qx + x^5*qx^2 + x^4*qx^3 + x^3*qx^4 + x^2*qx^5 + x*qx^6 + qx^7)*c7 + 1;
+e1 := (x^7 + x^6*qx + x^5*qx^2 + x^4*qx^3 + x^3*qx^4 + x^2*qx^5 + x*qx^6 + qx^7);
+exponent eq e1*c7 + 1;
+
+QQqt<q,u> := PolynomialRing(QQ, 2);
+e1_uq := (u^7 + u^6*q + u^5*q^2 + u^4*q^3 + u^3*q^4 + u^2*q^5 + u*q^6 + q^7);
+e_uq := e1_uq*(u^2/4*(u^6+1)+1) + 1;
+Evaluate(e_uq, [qx,x]) eq exponent;
+
+Evaluate(e1_uq, [qx,x]) eq e1;
+Factorization(e1_uq);
+e1_uq eq (q + u)*(q^2 + u^2)*(q^4 + u^4);
+c7 eq (x^8 + x^2 + 4)/4;
+c7 eq x^2/4*(x^6+1) + 1;
+exponent eq (x^2/4*(x^6+1) + 1)*(qx + x)*(qx^2 + x^2)*(qx^4 + x^4) + 1;
+
+e_uq eq (u^2/4*(u^6+1)+1)*(q + u)*(q^2 + u^2)*(q^4 + u^4) + 1;
+
+*/
+/*
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss18_polynomials();
+
+optimal_ate_pairing(k, qx, rx);
+
+assert ((x + 3*qx - qx^4) mod rx) eq 0;
+assert ((1 + x*qx^2 + 2*qx^3) mod rx) eq 0;
+assert ((-2 + 3*qx^3 + x*qx^5) mod rx) eq 0;
+
+eq1 := x + 3*(qx mod rx) - (qx^4 mod rx);
+eq1 eq 0;
+eq2 := 1 + x*(qx^2 mod rx) + 2*(qx^3 mod rx);
+eq3 := -2 + 3*(qx^3 mod rx) + x*(qx^5 mod rx);
+
+// these three tests answer a GCD equals to 1. But because it's about polynomials, it only means that it's a constant, a degree-0 polynomial.
+// assert Gcd(eq1 div rx, g2cx) eq 1;
+assert Gcd(eq2 div rx, g2cx) eq 1;
+assert Gcd(eq3 div rx, g2cx) eq 1;
+
+// Double-check with a seed.
+u348 := ZZ ! 2^44+2^22-2^9+2;// KSS18-348
+u2val := ZZ ! 0xc0c44000000; // high 2-valuation of r-1
+u := ZZ ! 2^80 + 2^77 + 2^76 - 2^61 - 2^53 - 2^14;//KSS18-638
+q := ZZ ! Evaluate(qx, u);
+r := ZZ ! Evaluate(rx, u);
+c := ZZ ! Evaluate(cx, u);
+t := ZZ ! Evaluate(tx, u);
+c2 := ZZ ! Evaluate(g2cx, u);
+
+eq1_u := ZZ ! Evaluate(eq1, u);
+eq2_u := ZZ ! Evaluate(eq2, u);
+eq3_u := ZZ ! Evaluate(eq3, u);
+
+// assert Gcd(eq1_u, c2) eq 1; does not work anymore once I applied 'mod rx' in the formula
+assert Gcd(eq2_u, c2) eq 1;
+assert Gcd(eq3_u, c2) eq 1; // this is 1 when applying 'mod r' above, this is 3 otherwise
+
+printf "Now G2 cofactor clearing: it's the same process as for optimal pairing and subgroup menbership testing but modulo g2cx instead of rx, and where the eigenvalue is not qx but lcx\n";
+// compute lcx the eigenvalue of psi modulo g2cx
+// psi has characteristic polynomial X^2 -t*X + p and eigenvalues (t +/- y*sqrt(-3))/2 so we need sqrt(-3) mod g2cx, this is (t_i-2)/y_i
+// where t_i is the trace of the twist and y_i is such that t_i^2 - 4*p^i = -D * y_i^2
+qx2 := qx^2;
+tx2 := tx^2 - 2*qx;
+tx3 := tx*tx2 - qx*tx;
+qx3 := qx*qx2;
+yx3 := yx * (qx - tx^2);
+E2_order := qx3+1-( 3*yx3+tx3)/2;
+assert E2_order eq rx * g2cx;
+
+gx := x^2 - t*x + q;
+eq2ux := 1 + u*x^2 + 2*x^3;
+eq3ux := -2 + 3*x^3 + u*x^5;
+res := ZZ ! Resultant(eq2ux, gx);
+g2u := ZZ!Evaluate(E2_order, u);
+gg := Gcd(res, g2u) div r; //
+printf "YuDai Th.1: Gcd(Resultant(f(X) mod g(X), g(X)), g2cx(u)) = %o * r\n",gg;
+Gcd(1 + u*(q^2 mod r) + 2*(q^3 mod r), g2u) eq r;
+
+
+QQyt<y,t> := PolynomialRing(QQ, 2);
+p := (t^2 + 3*y^2)/4;
+t2 := t^2 - 2*p;
+t3 := t*t2 - p*t;
+p3 := p^3;
+y3 := y * (p - t^2);
+tw3 := ( 3*y3+t3)/2;
+yw3 := 3/8*(y^3 + 3*y^2*t - y*t^2 - 1/3*t^3);
+(tw3^2 - 4*p3) eq -3*(yw3^2);
+// get (tw3-2)/yw3 mod the curve order
+// Xgcd(yw3, p3 + 1 - tw3); // does not work with Multivariate Polynomials
+twx3 := ( 3*yx3+tx3)/2; // the trace of the twist
+assert twx3 eq qx^3 + 1 - g2cx*rx;
+ywx3 := 3/8*(yx^3 + 3*yx^2*tx - yx*tx^2 - 1/3*tx^3);
+g, inv_ywx3, _ := Xgcd(ywx3, qx3 + 1 - twx3);
+sqrt_3 := (twx3 - 2)*inv_ywx3;
+assert ((sqrt_3^2 + 3) mod E2_order) eq 0;
+lcx := (tx + yx*sqrt_3)/2 mod E2_order;
+assert ((lcx^2 - tx*lcx + qx) mod E2_order) eq 0;
+assert (lcx mod rx) eq (qx mod rx);
+//optimal_ate_pairing(k, lcx mod g2cx, g2cx);
+
+R := Matrix(QQx, 6, 6, [\
+[    2*x^2 + 3*x,        -3*x - 1,         x^2 + 2,    -3*x^2 - 8*x,        8*x + 19, x^3 + 2*x^2 - 1],\
+[       -3*x - 1,         x^2 + 2,      -x^2 - 5*x,        8*x + 19, x^3 + 2*x^2 - 1,    -2*x^2 - 3*x],\
+[        x^2 + 2,      -x^2 - 5*x,        5*x + 18, x^3 + 2*x^2 - 1,    -2*x^2 - 3*x,         3*x + 1],\
+[     -x^2 - 5*x,        5*x + 18, x^3 + 3*x^2 + 1,    -2*x^2 - 3*x,         3*x + 1,        -x^2 - 2],\
+[       5*x + 18, x^3 + 3*x^2 + 1,    -3*x^2 - 8*x,         3*x + 1,        -x^2 - 2,       x^2 + 5*x],\
+[x^3 + 3*x^2 + 1,    -3*x^2 - 8*x,        8*x + 19,        -x^2 - 2,       x^2 + 5*x,       -5*x - 18]]);
+
+llcx := lcx mod g2cx;
+for i:= 1 to 6 do
+  truc := (&+ [R[i][j]*(llcx^(j-1) mod g2cx) : j in [1..6]]);
+  assert ((truc mod g2cx) eq 0);
+  truc div g2cx;
+end for;
+
+assert (((2*x^2 + 3*x) + (-3*x - 1)*lcx + (x^2 + 2)*lcx^2 + (-3*x^2 - 8*x)*lcx^3 + (8*x + 19)*lcx^4 + (x^3 + 2*x^2 - 1)*lcx^5) mod g2cx) eq 0;
+
+// G2 subgroup membership testing
+// assert (lcx mod rx) eq (qx mod rx);
+optimal_ate_pairing(k, qx mod rx, rx);
+R := Matrix(QQx, 6, 6, [\
+[-2,  0,  0,  3,  0,  x],\
+[ 0,  0,  1,  0,  x,  2],\
+[ 0,  1,  0,  x,  2,  0],\
+[ 1,  0,  x,  2,  0,  0],\
+[ 0,  x,  3,  0,  0, -1],\
+[ x,  3,  0,  0, -1,  0]]);
+// 1st and 4th rows are non-degenerate, the other rows give 0.
+// 1st row gives -56*rx (56=8*7), 4th row gives -35*rx (35=5*7).
+eq1 := -2 + 3*(qx^3 mod rx) + x*(qx^5 mod rx);
+eq2 := 1 + x*(qx^2 mod rx) + 2*(qx^3 mod rx);
+Resultant(eq1, g2cx) eq 2^54 * 1277459803 / (3^3 * 7^27);
+Resultant(eq2, g2cx) eq 5^18 * 1277459803 / (3^3 * 7^27);
+eq1 div rx eq -56; // 8*7
+eq2 div rx eq -35; // 5*7
+
+// Yu Dai et al technique: Theorem 1 in eprint 2022/348
+QQxX<X> := PolynomialRing(QQx);
+gX := X^2 - tx*X + qx;
+for eq_i in [[-2,0,0,3,0,x], [1,0,x,2,0,0], [2*x/7,1,0,x/7,0,0], [0,0,2*x/7,1,0,x/7]] do
+    eqi := QQxX ! eq_i;
+    // eq1 := -2 + 3*X^3 + x*X^5;
+    // eq2 := 1 + x*X^2 + 2*X^3;
+    // eq3 := 2*x/7 + X + (x/7)*X^3;
+    // eq4 := 2*x/7*X^2 + X^3 + (x/7)*X^5;
+    b0, b1 := Explode(Eltseq(eqi mod gX));
+    res := Resultant((eqi mod gX), gX);
+    res eq (b0^2 + b0*b1*tx + b1^2 * qx);
+    Gcd(res, E2_order) eq 343*rx; // no it does not equal rx
+    // but it is a Magma artefact to output monic Gcd over QQ
+    // there is no Gcd or Xgcd over ZZ<x> in Magma.
+end for;
+// formula from Table 2 in eprint 2022/348
+eq3 := 2*x/7 + (qx mod rx) + (x/7)*(qx^3 mod rx);
+eq3 eq 0;
+eq3_ := 2*x/7 + qx + (x/7)*qx^3;
+(eq3_ mod rx) eq 0;
+// my own formula
+eq4 := 2*x/7*(qx^2 mod rx) + (qx^3 mod rx) + x/7*(qx^5 mod rx);
+eq4 eq -18*rx;
+// the idea is to take R and find a linear combination of the rows so as to be able to divide by 7^3.
+// Note that x is a multiple of 7.
+
+R := Matrix(QQx, 6, 6, [\
+[-2,  0,  0,  3,  0,  7*x],\
+[ 0,  0,  1,  0,  7*x,  2],\
+[ 0,  1,  0,  7*x,  2,  0],\
+[ 1,  0,  7*x,  2,  0,  0],\
+[ 0,  7*x,  3,  0,  0, -1],\
+[ 7*x,  3,  0,  0, -1,  0]]);
+l := 7;
+m := 3;
+col_qi := Matrix(QQx, 6, 1, [(qx^i mod rx) : i in [0..5]]);
+for a0 := -m to m do
+    //a1 := 0; a2 := 0; a4 := 0; a5 := 0;
+    for a1 := -m to m do
+	for a2 := -m to m do
+	    for a3 := -m to m do
+		for a4 := -m to m do
+		    for a5 := -m to m do
+			if Gcd([a0, a1, a2, a3, a4, a5]) ne 1 then // or a0*a3 eq 0
+			    continue;
+			end if;
+			v := Vector(QQx, [a0, a1, a2, a3, a4, a5]);
+			truc := v * R;
+			if truc*col_qi eq 0 then
+			    continue;
+			end if;
+			// can we divide everything by 7?
+			g := 0;
+			for vi in Eltseq(truc) do
+			    if vi in QQx and Degree(vi) eq 1 then
+				g := ZZ ! Gcd(g, Gcd([ZZ ! ci : ci in (Eltseq(vi))]));
+			    else
+				g := ZZ ! Gcd(g, ZZ ! vi);
+			    end if;
+			end for;
+			if (g mod 7) eq 0 then
+			    // divide by 7, then divide x by 7, then multiply by [q^i] to check
+			    v7 := [Evaluate(vi/7, x/7) : vi in Eltseq(truc)];
+			    non_zero_coeffs := # [1 : vi in Eltseq(truc) | vi eq 0];
+			    eqi := &+ [v7[i+1] * (qx^i mod rx) : i in [0..5]];
+			    if eqi ne 0 and non_zero_coeffs ge 2 then
+			    //if eqi eq rx or eqi eq -rx then
+				printf "v = %o Gcd = %o v*R/7 = %o -> %o*rx   (%o)\n", v, g, Vector(QQx, v7), eqi div rx, non_zero_coeffs;
+			    end if;
+			end if;
+		    end for;
+		end for;
+	    end for;
+	end for;
+    end for;
+end for;
+
+//v = (-3  0  0  1  0  0) Gcd = 7 v*R/7 = (     1      0  1/7*x     -1      0 -3/7*x) -> 19*rx   (2)
+//v = (-2  0  0  3  0  0) Gcd = 7 v*R/7 = (     1      0  3/7*x      0      0 -2/7*x) -> 1*rx   (3)
+//v = (-1  0  0 -2  0  0) Gcd = 7 v*R/7 = (     0      0 -2/7*x     -1      0 -1/7*x) -> 18*rx   (3)
+
+1 + x/7*(qx^2 mod rx) - (qx^3 mod rx) - 3*x/7*(qx^5 mod rx) eq 19*rx;
+(1 + 3*x/7*(qx^2 mod rx) - 2*x/7*(qx^5 mod rx)) eq rx;
+2*x/7*(qx^2 mod rx) + (qx^3 mod rx) + x/7*(qx^5 mod rx) eq -18*rx;
+
+R := Matrix(QQx, 6, 6, [\
+[ 0,  0,  2*x/7,  1,  0,  x/7],\
+[ 0,  0,  1,  0,  x,  2],\
+[ 0,  1,  0,  x,  2,  0],\
+[ 1,  0,x/7, -1,  0, -3*x/7],\
+[ 0,  x,  3,  0,  0, -1],\
+[ x,  3,  0,  0, -1,  0]]);
+Determinant(R) eq -49*rx;
+*/
+
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss16_polynomials();
+E2_order := rx * g2cx;
+
+optimal_ate_pairing(k, qx mod rx, rx);
+
+assert ((x + qx -2*qx^5) mod rx) eq 0;
+
+Gcd(x + qx -2*qx^5, g2cx); // this is 1
+
+u := ZZ ! 2^78-2^76-2^28+2^14+2^7+1;
+Gcd(ZZ ! Evaluate(x + qx -2*qx^5, u), ZZ ! Evaluate(g2cx, u)); // this is 2 and this is a problem.
+R := Matrix(QQx, 8, 8, [\
+			[-1,  0,  0,  0,  2,  0,  0,  x],\
+			[ 0,  0,  0,  2,  0,  0,  x,  1],\
+			[ 0,  0,  2,  0,  0,  x,  1,  0],\
+			[ 0,  2,  0,  0,  x,  1,  0,  0],\
+			[ 2,  0,  0,  x,  1,  0,  0,  0],\
+			[ 0,  0,  x,  1,  0,  0,  0, -2],\
+			[ 0,  x,  1,  0,  0,  0, -2,  0],\
+			[ x,  1,  0,  0,  0, -2,  0,  0]]);
+
+// Yu Dai short vector from https://github.com/eccdaiy39/smt-magma/blob/main/vector/Vector_G2.m
+//KSS16-P330:
+//(2679756127 -2192527740 730842580 730842580 -3166984514 1705299354 243614193  2679756127)
+u1 := (-x-25)/70; // but then it is specific to seeds u = 45 mod 70
+c6 := u1;
+c2 := 3*c6+1;
+c3 := c2;
+c1 := -3*c2;
+c5 := 2*c2+c6+1;
+c4 := -2*c5+c6+1;
+c0 := 2*c6-c1+1;
+c7 := c0;
+v := [c0, c1, c2, c3, c4, c5, c6, c7];
+eq1 := &+ [v[i+1]*(qx^i mod rx) : i in [0..7]];
+eq1 mod rx;
+v70 := [-11*x + 5, 9*x + 15, -3*x - 5, -3*x - 5, 13*x - 25, -7*x + 35, -x - 25, -11*x + 5];
+// is there a better formula?
+
+
+
+QQyt<y,t> := PolynomialRing(QQ, 2);
+p := (t^2 + y^2)/4;
+t2 := t^2 - 2*p;
+p2 := p^2;
+t4 := t2^2 - 2*p2;
+p4 := p2^2;
+p4+1-t4 eq (p+1-t)*(p+1+t)*(p^2+1+t2);
+y4 := y*t*(t^2-2*p);
+assert t4^2 - 4*p4 eq -y4^2;
+tw4 := -y4;
+yw4 := ((y^2-t^2)^2 - (2*y*t)^2)/8;
+assert (tw4^2-4*p4) eq -yw4^2;
+
+yx4 := yx*tx*(tx^2-2*qx);
+twx4 := -yx4;
+assert twx4 eq qx^4 + 1 - g2cx*rx;
+ywx4 := ((yx^2-tx^2)^2 - (2*yx*tx)^2)/8;
+
+g, inv_ywx4, _ := Xgcd(ywx4, qx^4 + 1 - twx4);
+sqrt_1 := (twx4 - 2)*inv_ywx4;
+assert ((sqrt_1^2 + 1) mod E2_order) eq 0;
+lcx := (tx + yx*sqrt_1)/2 mod E2_order; // does not work
+lcx := (tx - yx*sqrt_1)/2 mod E2_order;
+assert ((lcx^2 - tx*lcx + qx) mod E2_order) eq 0;
+assert (lcx mod rx) eq (qx mod rx);
+//optimal_ate_pairing(k, lcx mod g2cx, g2cx);
+
+//[   x^3 - 3*x^2   3*x^2 + 11*x      -11*x - 7     2*x^3 + 14 -2*x^3 - 4*x^2    4*x^2 - 2*x       2*x + 24      x^4 + x^3]
+//[  3*x^2 + 11*x      -11*x - 7     2*x^3 + 14 -2*x^3 - 4*x^2    4*x^2 - 2*x       2*x + 24      x^4 + x^3   -x^3 + 3*x^2]
+//[     -11*x - 7     2*x^3 + 14 -2*x^3 - 4*x^2    4*x^2 - 2*x       2*x + 24      x^4 + x^3   -x^3 + 3*x^2  -3*x^2 - 11*x]
+//[    2*x^3 + 14 -2*x^3 - 4*x^2    4*x^2 - 2*x       2*x + 24      x^4 + x^3   -x^3 + 3*x^2  -3*x^2 - 11*x       11*x + 7]
+//[-2*x^3 - 4*x^2    4*x^2 - 2*x       2*x + 24      x^4 + x^3   -x^3 + 3*x^2  -3*x^2 - 11*x       11*x + 7    -2*x^3 - 14]
+//[   4*x^2 - 2*x       2*x + 24      x^4 + x^3   -x^3 + 3*x^2  -3*x^2 - 11*x       11*x + 7    -2*x^3 - 14  2*x^3 + 4*x^2]
+//[      2*x + 24      x^4 + x^3   -x^3 + 3*x^2  -3*x^2 - 11*x       11*x + 7    -2*x^3 - 14  2*x^3 + 4*x^2   -4*x^2 + 2*x]
+//[     x^4 + x^3   -x^3 + 3*x^2  -3*x^2 - 11*x       11*x + 7    -2*x^3 - 14  2*x^3 + 4*x^2   -4*x^2 + 2*x      -2*x - 24]
+
+assert (((x^3 - 3*x^2) + (3*x^2 + 11*x)*lcx + (-11*x - 7)*lcx^2 + (2*x^3 + 14)*lcx^3 + (-2*x^3 - 4*x^2)*lcx^4 + (4*x^2 - 2*x)*lcx^5 + (2*x + 24)*lcx^6 + (x^4 + x^3)*lcx^7) mod g2cx) eq 0;
+
+
+/*
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+
+c7, rem := Quotrem(exponent, qx^7);
+c6, rem := Quotrem(rem, qx^6);
+c5, rem := Quotrem(rem, qx^5);
+c4, rem := Quotrem(rem, qx^4);
+c3, rem := Quotrem(rem, qx^3);
+c2, rem := Quotrem(rem, qx^2);
+c1, c0 := Quotrem(rem, qx);
+
+printf "%o %o %o %o %o %o %o %o\n", Degree(c0), Degree(c1), Degree(c2), Degree(c3), Degree(c4), Degree(c5), Degree(c6), Degree(c7);
+
+Quotrem(c0, c7); c0 eq (-11*x^7 - 278*x^3 - 616*x^2 + 1232*x + 616)/875 * c7 - 2*(264*x + 61);
+Quotrem(c1, c7); c1 eq (3*x^6 + 44*x^2 + 168*x - 336)/175 * c7 -60*(x-10);
+Quotrem(c2, c7); c2 eq (x^5 + 38*x + 56)/35 * c7 - 100*(2*x + 5);
+Quotrem(c3, c7); c3 eq -(x^4 + 24)/7 * c7 -500*x;
+Quotrem(c4, c7); c4 eq -(2*x^7 - 29*x^3 + 112*x^2 - 224*x - 112)/875 * c7 - 8*(12*x - 37);
+Quotrem(c5, c7); c5 eq -(4*x^6 + 117*x^2 + 224*x - 448)/175 * c7 + 80*(x - 10);
+Quotrem(c6, c7); c6 eq (2*x^5 + 41*x + 112)/35 * c7 -200*(2*x + 5);
+
+
+i := 0; q_, r_ := Quotrem(c0, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 1; q_, r_ := Quotrem(c1, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 2; q_, r_ := Quotrem(c2, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 3; q_, r_ := Quotrem(c3, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 4; q_, r_ := Quotrem(c4, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 5; q_, r_ := Quotrem(c5, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 6; q_, r_ := Quotrem(c6, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 7;q_ := c7;
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+printf "c%o = %o/%o*(%o)\n", i, i_, d_, d_/i_*q_;
+
+
+
+exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5 + c6*qx^6 + c7*qx^7);
+
+c7 eq 125/2*(x^2 + 2*x + 5);
+
+exponent eq 125/2*(x^2 + 2*x + 5) * ((-11*x^7 - 278*x^3 - 616*x^2 + 1232*x + 616)/875 + (3*x^6 + 44*x^2 + 168*x - 336)/175*qx + (x^5 + 38*x + 56)/35*qx^2 - (x^4 + 24)/7*qx^3 + -(2*x^7 - 29*x^3 + 112*x^2 - 224*x - 112)/875*qx^4 - (4*x^6 + 117*x^2 + 224*x - 448)/175*qx^5 + (2*x^5 + 41*x + 112)/35*qx^6 + qx^7) - 2*(264*x + 61) -60*(x-10)*qx  - 100*(2*x + 5)*qx^2 -500*x*qx^3- 8*(12*x - 37)*qx^4 + 8\
+0*(x - 10)*qx^5 -200*(2*x + 5)*qx^6;
+//true
+
+exponent eq 125/2*(x^2 + 2*x + 5) * ((-11*x^7 - 278*x^3 - 616*x^2 + 1232*x + 616)/875 + (3*x^6 + 44*x^2 + 168*x - 336)/175*qx + (x^5 + 38*x + 56)/35*qx^2 - (x^4 + 24)/7*qx^3  - (2*x^7 - 29*x^3 + 112*x^2 - 224*x - 112)/875*qx^4 - (4*x^6 + 117*x^2 + 224*x - 448)/175*qx^5 + (2*x^5 + 41*x + 112)/35*qx^6 + qx^7) + (-2*(264*x + 61) -60*(x-10)*qx  - 100*(2*x + 5)*qx^2 -500*x*qx^3- 8*(12*x - 37)*qx^4 + 80*(x - 10)*qx^5 -200*(2*x + 5)*qx^6);
+
+//exponent eq 1/2*(x^2 + 2*x + 5) * ((-11*x^7 - 278*x^3 - 616*x^2 + 1232*x + 616)/7 + 5*(3*x^6 + 44*x^2 + 168*x - 336)/7*qx + 25*(x^5 + 38*x + 56)/7*qx^2 - 125*(x^4 + 24)/7*qx^3  -(2*x^7 - 29*x^3 + 112*x^2 - 224*x - 112)/7*qx^4 - 5*(4*x^6 + 117*x^2 + 224*x - 448)/7*qx^5 + 25*(2*x^5 + 41*x + 112)/7*qx^6 + 125*qx^7) + 125*( - 2*(264*x + 61) -60*(x-10)*qx  - 100*(2*x + 5)*qx^2 -500*x*qx^3- 8*(12*x - 37)*qx^4 + 80*(x - 10)*qx^5 -200*(2*x + 5)*qx^6);
+
+
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_kss16_polynomials();
+
+980*qx;
+980*Evaluate(qx, x-1);
+
+qx := Evaluate(qx, x-1);
+rx := Evaluate(rx, x-1);
+tx := Evaluate(tx, x-1);
+yx := Evaluate(yx, x-1);
+cx := Evaluate(cx, x-1);
+
+qx+1-tx eq rx*cx;
+exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+
+c7, rem := Quotrem(exponent, qx^7);
+c6, rem := Quotrem(rem, qx^6);
+c5, rem := Quotrem(rem, qx^5);
+c4, rem := Quotrem(rem, qx^4);
+c3, rem := Quotrem(rem, qx^3);
+c2, rem := Quotrem(rem, qx^2);
+c1, c0 := Quotrem(rem, qx);
+
+printf "%o %o %o %o %o %o %o %o\n", Degree(c0), Degree(c1), Degree(c2), Degree(c3), Degree(c4), Degree(c5), Degree(c6), Degree(c7);
+
+i := 0; q_, r_ := Quotrem(c0, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 1; q_, r_ := Quotrem(c1, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 2; q_, r_ := Quotrem(c2, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 3; q_, r_ := Quotrem(c3, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 4; q_, r_ := Quotrem(c4, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 5; q_, r_ := Quotrem(c5, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 6; q_, r_ := Quotrem(c6, c7);
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+n_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(r_)]);
+j_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(n_*r_)]);
+printf "c%o = %o/%o*(%o) *c7 + %o/%o*(%o)\n", i, i_, d_, d_/i_*q_, j_, n_, n_/j_*r_;
+
+i := 7;q_ := c7;
+d_ := Lcm([ZZ ! Denominator(ui) : ui in Eltseq(q_)]);
+i_ := Gcd([ZZ ! Numerator(ui) : ui in Eltseq(d_*q_)]);
+printf "c%o = %o/%o*(%o)\n", i, i_, d_, d_/i_*q_;
+exponent eq (c0 + c1*qx + c2*qx^2 + c3*qx^3 + c4*qx^4 + c5*qx^5 + c6*qx^6 + c7*qx^7);
+*/
+/*
+without change of variables:
+c0 = 1/875*(-11*x^7 - 278*x^3 - 616*x^2 + 1232*x + 616) *c7 + 2/1*(-264*x - 61)
+c1 = 1/175*(3*x^6 + 44*x^2 + 168*x - 336) *c7 + 60/1*(-x + 10)
+c2 = 1/35*(x^5 + 38*x + 56) *c7 + 100/1*(-2*x - 5)
+c3 = 1/7*(-x^4 - 24) *c7 + 500/1*(-x)
+c4 = 1/875*(-2*x^7 + 29*x^3 - 112*x^2 + 224*x + 112) *c7 + 8/1*(-12*x + 37)
+c5 = 1/175*(-4*x^6 - 117*x^2 - 224*x + 448) *c7 + 80/1*(x - 10)
+c6 = 1/35*(2*x^5 + 41*x + 112) *c7 + 200/1*(-2*x - 5)
+c7 = 125/2*(x^2 + 2*x + 5)
+
+
+9 8 7 6 9 8 7 2
+c0 = 1/875*(-11*x^7 + 77*x^6 - 231*x^5 + 385*x^4 - 663*x^3 + 449*x^2 + 1553*x - 943) *c7 + 2/1*(-264*x + 203)
+c1 = 1/175*(3*x^6 - 18*x^5 + 45*x^4 - 60*x^3 + 89*x^2 + 62*x - 457) *c7 + 60/1*(-x + 11)
+c2 = 1/35*(x^5 - 5*x^4 + 10*x^3 - 10*x^2 + 43*x + 17) *c7 + 100/1*(-2*x - 3)
+c3 = 1/7*(-x^4 + 4*x^3 - 6*x^2 + 4*x - 25) *c7 + 500/1*(-x + 1)
+c4 = 1/875*(-2*x^7 + 14*x^6 - 42*x^5 + 70*x^4 - 41*x^3 - 157*x^2 + 521*x - 251) *c7 + 8/1*(-12*x + 49)
+c5 = 1/175*(-4*x^6 + 24*x^5 - 60*x^4 + 80*x^3 - 177*x^2 + 34*x + 551) *c7 + 80/1*(x - 11)
+c6 = 1/35*(2*x^5 - 10*x^4 + 20*x^3 - 20*x^2 + 51*x + 69) *c7 + 200/1*(-2*x - 3)
+c7 = 125/2*(x^2 + 4)
+*/
+/*
+printf "BLS27\n";
+k:=27;
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+//exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+L, Lx, L_uq := final_exp_hard_HHT(k, rx, tx, qx);
+L;
+Factorization(L_uq);
+
+printf "BLS21\n";
+k:=21;
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_bls_polynomials(k);
+//exponent, R := exponentiation_hard_part(qx, rx, tx, k);
+L, Lx, L_uq := final_exp_hard_HHT(k, rx, tx, qx);
+L;
+Factorization(L_uq);
+// x^11 - x^10 + x^8 - x^7 + x^5 - x^3 + x^2 - 1,
+// x^10 - x^9 + x^7 - x^6 + x^4 - x^2 + x,
+// x^9 - x^8 + x^6 - x^5 + x^3 - x + 1,
+// x^8 - x^7 + x^5 - x^4 + x^2 - 1,
+// x^7 - x^6 + x^4 - x^3 + x,
+// x^6 - x^5 + x^3 - x^2 + 1,
+// x^5 - x^4 + x^2 - x,
+// x^4 - x^3 + x - 1,
+// x^3 - x^2 + 1,
+// x^2 - x,
+// x - 1,
+// 1
+// QQuq<u,q> := Parent(L_uq);
+// j := 11; e11_uq := &+ [u^i*q^(j-i) : i in [0..j]];
+// j := 10; e10_uq := &+ [u^i*q^(j-i) : i in [0..j]];
+// j := 8; e8_uq := &+ [u^i*q^(j-i) : i in [0..j]];
+// j := 7; e7_uq := &+ [u^i*q^(j-i) : i in [0..j]];
+// j := 5; e5_uq := &+ [u^i*q^(j-i) : i in [0..j]];
+// j := 3; e3_uq := &+ [u^i*q^(j-i) : i in [0..j]];
+// j := 2; e2_uq := &+ [u^i*q^(j-i) : i in [0..j]];
+// Factorization(e11_uq);
+// Factorization(e10_uq);
+// Factorization(e8_uq);
+// Factorization(e7_uq);
+// Factorization(e5_uq);
+// Factorization(e3_uq);
+// Factorization(e2_uq);
+*/
+/*
+printf "FST28\n";
+k := 28;
+rx, tx, qx, yx, cx, eigenvalue_phi, D, k := get_fst64_polynomials(k);
+L, Lx, L_uq := final_exp_hard_HHT(k, rx, tx, qx);
+L;
+Factorization(L_uq);
+QQuq<u,q> := Parent(L_uq);
+j := 10; e10_uq := &+ [u^i*q^(j-i) : i in [0..j by 2]];
+Factorization(e10_uq);
+j := 8; e8_uq := &+ [u^i*q^(j-i) : i in [0..j by 2]];
+Factorization(e8_uq);
+j := 6; e6_uq := &+ [u^i*q^(j-i) : i in [0..j by 2]];
+Factorization(e6_uq);
+j := 4; e4_uq := &+ [u^i*q^(j-i) : i in [0..j by 2]];
+Factorization(e4_uq);
+j := 2; e2_uq := &+ [u^i*q^(j-i) : i in [0..j by 2]];
+Factorization(e2_uq);
+
+L_uq eq (q+u)*(e10_uq - e8_uq + e6_uq - e4_uq + e2_uq - 1);
+Gcd([e10_uq, e6_uq, e2_uq]);
+Gcd([e10_uq, e4_uq]);
+
+Quotrem((e10_uq - e8_uq + e6_uq - e4_uq + e2_uq - 1), (u^2+q^2));
+Quotrem((e10_uq - e8_uq + e6_uq - e4_uq + e2_uq - 1), u^4 + u^2*q^2 + q^4);
+
+(e10_uq - e8_uq + e6_uq - e4_uq + e2_uq - 1) eq (u^4 + u^2*q^2 + q^4)*(u^6 - u^4 + u^2 + q^6 - 1) -u^2*q^6 + u^2 - q^8 + q^6 + q^2 - 1;
+(e10_uq - e8_uq + e6_uq - e4_uq + e2_uq - 1) eq (u^2*(u^2+q^2) + q^4)*(u^2*(u^2*(u^2-1) + 1) + q^6-1) - (q^6-1)*((u^2-1) + q^2);
+*/
+
+/*
+printf "Aurifeuillean k=18\n";
+
+rx, tx, qx, yx, cx, lambrx, lambcx, g2cx, txe, yxe, D, k := get_auri_k18_polynomials(:exp_trace:=1);
+optimal_ate_pairing(k, qx, rx);
+((3*x + 2*qx^2 - qx^5) mod rx) eq 0;
+((1 + 3*x*qx + qx^3) mod rx) eq 0;
+// formula from Geogios
+((x + x*qx^3 + qx^2) mod rx) eq 0;
+*/
